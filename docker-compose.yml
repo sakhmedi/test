@@ -1,6 +1,22 @@
 version: '3.8'
 
+networks:
+  docuflow_net:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  minio_data:
+  milvus_data:
+  etcd_data:
+  elasticsearch_data:
+  ragflow_data:
+
 services:
+
+  # ------------------------------------------------------------------ #
+  # PostgreSQL — shared DB for docuflow, langfuse, n8n                  #
+  # ------------------------------------------------------------------ #
   postgres:
     image: postgres:15
     environment:
@@ -11,12 +27,33 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      - ./postgres-init:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - docuflow_net
 
+  # ------------------------------------------------------------------ #
+  # Redis                                                                #
+  # ------------------------------------------------------------------ #
   redis:
-    image: redis:7
+    image: redis:7-alpine
     ports:
       - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - docuflow_net
 
+  # ------------------------------------------------------------------ #
+  # MinIO — S3-compatible object storage                                 #
+  # ------------------------------------------------------------------ #
   minio:
     image: minio/minio
     command: server /data --console-address ":9001"
@@ -28,25 +65,153 @@ services:
       - "9001:9001"
     volumes:
       - minio_data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+    networks:
+      - docuflow_net
 
+  # ------------------------------------------------------------------ #
+  # etcd — cluster metadata store required by Milvus                    #
+  # ------------------------------------------------------------------ #
+  etcd:
+    image: quay.io/coreos/etcd:v3.5.5
+    command: >
+      etcd
+      --name etcd0
+      --data-dir /etcd-data
+      --listen-client-urls http://0.0.0.0:2379
+      --advertise-client-urls http://etcd:2379
+      --listen-peer-urls http://0.0.0.0:2380
+      --initial-advertise-peer-urls http://etcd:2380
+      --initial-cluster etcd0=http://etcd:2380
+    volumes:
+      - etcd_data:/etcd-data
+    networks:
+      - docuflow_net
+
+  # ------------------------------------------------------------------ #
+  # Milvus — vector database (standalone mode)                          #
+  # ------------------------------------------------------------------ #
+  milvus:
+    image: milvusdb/milvus:v2.3.3
+    command: milvus run standalone
+    environment:
+      ETCD_ENDPOINTS: etcd:2379
+      MINIO_ADDRESS: minio:9000
+      MINIO_ACCESS_KEY_ID: ${MINIO_USER}
+      MINIO_SECRET_ACCESS_KEY: ${MINIO_PASSWORD}
+    ports:
+      - "19530:19530"
+    volumes:
+      - milvus_data:/var/lib/milvus
+    depends_on:
+      - etcd
+      - minio
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9091/healthz"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    networks:
+      - docuflow_net
+
+  # ------------------------------------------------------------------ #
+  # Elasticsearch — required by RAGFlow for full-text search            #
+  # ------------------------------------------------------------------ #
+  elasticsearch:
+    image: elasticsearch:8.11.0
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - ES_JAVA_OPTS=-Xms512m -Xmx512m
+    ports:
+      - "9200:9200"
+    volumes:
+      - elasticsearch_data:/usr/share/elasticsearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:9200/_cluster/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    networks:
+      - docuflow_net
+
+  # ------------------------------------------------------------------ #
+  # RAGFlow — document AI / RAG engine                                  #
+  # ------------------------------------------------------------------ #
+  ragflow:
+    image: infiniflow/ragflow:latest
+    ports:
+      - "9380:9380"   # REST API
+      - "8080:80"     # Web UI
+    volumes:
+      - ragflow_data:/ragflow
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+      milvus:
+        condition: service_healthy
+    networks:
+      - docuflow_net
+
+  # ------------------------------------------------------------------ #
+  # Backend — FastAPI application                                        #
+  # ------------------------------------------------------------------ #
   backend:
     build: ./backend
     ports:
       - "8000:8000"
     env_file:
       - .env
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      REDIS_URL: redis://redis:6379/0
+      MINIO_ENDPOINT: minio:9000
+      MINIO_USER: ${MINIO_USER}
+      MINIO_PASSWORD: ${MINIO_PASSWORD}
+      RAGFLOW_API_URL: http://ragflow:9380
+      MILVUS_HOST: milvus
     depends_on:
-      - postgres
-      - redis
-      - minio
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    networks:
+      - docuflow_net
 
+  # ------------------------------------------------------------------ #
+  # Frontend — nginx static site                                         #
+  # ------------------------------------------------------------------ #
   frontend:
     build: ./frontend
     ports:
-      - "3000:3000"
+      - "3000:80"
     depends_on:
       - backend
+    networks:
+      - docuflow_net
 
-volumes:
-  postgres_data:
-  minio_data:
+  # ------------------------------------------------------------------ #
+  # Langfuse — LLM observability / tracing                              #
+  # ------------------------------------------------------------------ #
+  langfuse:
+    image: langfuse/langfuse:2
+    ports:
+      - "3001:3000"
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/langfuse
+      NEXTAUTH_SECRET: ${NEXTAUTH_SECRET}
+      NEXTAUTH_URL: ${NEXTAUTH_URL}
+      LANGFUSE_SECRET_KEY: ${LANGFUSE_SECRET_KEY}
+      LANGFUSE_PUBLIC_KEY: ${LANGFUSE_PUBLIC_KEY}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - docuflow_net
+
