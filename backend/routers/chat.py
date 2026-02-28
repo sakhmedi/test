@@ -1,4 +1,5 @@
 from fastapi import APIRouter
+from llm import get_client  # noqa: F401  — used from Day 4 onwards
 
 router = APIRouter(prefix="/chat", tags=["chat"])
 

@@ -12,6 +12,7 @@ from sqlalchemy import text
 
 from database import engine, Base
 from routers import auth, documents, chat
+import llm as llm_module
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -19,7 +20,7 @@ logger = logging.getLogger(__name__)
 MINIO_ENDPOINT = os.getenv("MINIO_ENDPOINT", "minio:9000")
 MINIO_USER = os.getenv("MINIO_USER", "admin")
 MINIO_PASSWORD = os.getenv("MINIO_PASSWORD", "admin")
-MINIO_BUCKET = os.getenv("MINIO_BUCKET", "docuflow-docs")
+MINIO_BUCKET = os.getenv("MINIO_BUCKET", "test-docs")
 REDIS_URL = os.getenv("REDIS_URL", "redis://redis:6379/0")
 ALLOWED_ORIGINS = os.getenv("ALLOWED_ORIGINS", "http://localhost:3000").split(",")
 
@@ -98,6 +99,14 @@ def health():
         services["minio"] = "ok"
     except Exception as exc:
         services["minio"] = f"error: {exc}"
+
+    # AlemLLM — just check the key is set, no network call
+    try:
+        model = llm_module._DEFAULT_MODEL
+        llm_module._api_key_for(model)
+        services["llm"] = f"ok ({model})"
+    except ValueError as exc:
+        services["llm"] = f"error: {exc}"
 
     overall = "ok" if all(v == "ok" for v in services.values()) else "degraded"
     return {"status": overall, "services": services}

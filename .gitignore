@@ -1,6 +1,5 @@
 # Секреты и конфиги
 .env
-.env.example
 *.key
 *.pem
 
