@@ -1,0 +1,31 @@
+# Секреты и конфиги
+.env
+.env.example
+*.key
+*.pem
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+*.egg-info/
+
+# Node.js / Frontend
+node_modules/
+.next/
+dist/
+build/
+
+# Системные файлы
+.DS_Store        # Mac
+Thumbs.db        # Windows
+
+# IDE
+.vscode/
+.idea/
+
+# Docker volumes (локальные данные)
+postgres_data/
+minio_data/
