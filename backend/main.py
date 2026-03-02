@@ -63,8 +63,8 @@ app.add_middleware(
 )
 
 app.include_router(auth.router)
-app.include_router(documents.router)
-app.include_router(chat.router)
+app.include_router(documents.router, prefix="/api")
+app.include_router(chat.router, prefix="/api")
 
 
 @app.get("/health", tags=["health"])
@@ -104,7 +104,8 @@ def health():
     try:
         model = llm_module._DEFAULT_MODEL
         llm_module._api_key_for(model)
-        services["llm"] = f"ok ({model})"
+        services["llm"] = "ok"
+        logger.info("LLM model: %s", model)
     except ValueError as exc:
         services["llm"] = f"error: {exc}"
 

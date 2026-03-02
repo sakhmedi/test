@@ -123,6 +123,11 @@ services:
   # ------------------------------------------------------------------ #
   elasticsearch:
     image: elasticsearch:8.11.0
+    hostname: es01
+    networks:
+      docuflow_net:
+        aliases:
+          - es01
     environment:
       - discovery.type=single-node
       - xpack.security.enabled=false
@@ -136,8 +141,6 @@ services:
       interval: 30s
       timeout: 10s
       retries: 5
-    networks:
-      - docuflow_net
 
   # ------------------------------------------------------------------ #
   # RAGFlow — document AI / RAG engine                                  #

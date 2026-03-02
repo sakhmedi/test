@@ -30,6 +30,8 @@ class Document(Base):
     filename = Column(String(512), nullable=False)
     minio_key = Column(String(1024), nullable=False)
     status = Column(String(50), default="pending")  # pending | processing | indexed | error
+    ragflow_kb_id = Column(String(512), nullable=True)   # RAGFlow dataset ID
+    ragflow_doc_id = Column(String(512), nullable=True)  # RAGFlow document ID
     created_at = Column(DateTime, default=datetime.utcnow)
 
     company = relationship("Company", back_populates="documents")
