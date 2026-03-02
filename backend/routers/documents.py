@@ -2,7 +2,7 @@ import uuid
 import logging
 from typing import List
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
 from sqlalchemy.orm import Session
 
 from auth_utils import get_current_user
@@ -15,6 +15,8 @@ from services.ragflow_client import RAGFlowClient
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/documents", tags=["documents"])
+
+MAX_UPLOAD_BYTES = 50 * 1024 * 1024  # 50 MB — FIXED: enforce file-size limit
 
 ALLOWED_MIME_TYPES = {
     "application/pdf",
@@ -38,7 +40,7 @@ def _is_image(content_type: str, filename: str) -> bool:
     return content_type in IMAGE_MIME_TYPES or _ext(filename) in IMAGE_EXTENSIONS
 
 
-@router.post("/upload")
+@router.post("/upload", status_code=status.HTTP_201_CREATED)  # FIXED: return 201 Created
 async def upload_document(
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
@@ -52,6 +54,9 @@ async def upload_document(
         raise HTTPException(status_code=400, detail="Only PDF, Word, and image files are allowed.")
 
     file_bytes = await file.read()
+    # FIXED: reject files larger than 50 MB
+    if len(file_bytes) > MAX_UPLOAD_BYTES:
+        raise HTTPException(status_code=413, detail="File too large. Maximum size is 50 MB.")
     original_filename = file.filename or f"upload{ext}"
 
     # OCR branch: images and scanned PDFs get converted to text first

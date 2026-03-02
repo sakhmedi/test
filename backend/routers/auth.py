@@ -34,7 +34,7 @@ class LoginRequest(BaseModel):
 async def register(body: RegisterRequest, db: Session = Depends(get_db)):
     # Check email uniqueness
     if db.query(User).filter(User.email == body.email).first():
-        raise HTTPException(status_code=400, detail="Email already registered.")
+        raise HTTPException(status_code=409, detail="Email already registered.")  # FIXED: 409 Conflict
 
     # Create company with a unique slug
     base_slug = _slugify(body.company_name) or "company"

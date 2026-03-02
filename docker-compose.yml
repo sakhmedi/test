@@ -89,6 +89,12 @@ services:
       --initial-cluster etcd0=http://etcd:2380
     volumes:
       - etcd_data:/etcd-data
+    # FIXED: added healthcheck
+    healthcheck:
+      test: ["CMD-SHELL", "etcdctl endpoint health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
     networks:
       - docuflow_net
 
@@ -157,6 +163,12 @@ services:
         condition: service_healthy
       milvus:
         condition: service_healthy
+    # FIXED: added healthcheck
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:9380/v1/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
     networks:
       - docuflow_net
 
@@ -184,6 +196,14 @@ services:
         condition: service_healthy
       minio:
         condition: service_healthy
+      ragflow:  # FIXED: wait for ragflow to start before backend
+        condition: service_started
+    # FIXED: added healthcheck
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8000/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
     networks:
       - docuflow_net
 
@@ -196,6 +216,12 @@ services:
       - "3000:80"
     depends_on:
       - backend
+    # FIXED: added healthcheck
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:80"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
     networks:
       - docuflow_net
 
@@ -215,6 +241,12 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+    # FIXED: added healthcheck
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:3000/api/public/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
     networks:
       - docuflow_net
 

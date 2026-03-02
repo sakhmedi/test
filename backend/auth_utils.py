@@ -1,3 +1,4 @@
+import logging
 import os
 from datetime import datetime, timedelta
 
@@ -6,7 +7,17 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError, jwt
 from passlib.context import CryptContext
 
-JWT_SECRET = os.getenv("JWT_SECRET", "change_me_jwt_secret_32_chars_min")
+_logger = logging.getLogger(__name__)
+
+_JWT_SECRET_DEFAULT = "change_me_jwt_secret_32_chars_min"
+JWT_SECRET = os.getenv("JWT_SECRET", _JWT_SECRET_DEFAULT)
+
+# FIXED: warn loudly at import time if the default JWT secret is still in use
+if JWT_SECRET == _JWT_SECRET_DEFAULT:
+    _logger.warning(
+        "SECURITY WARNING: JWT_SECRET is set to the default placeholder value. "
+        "Set a strong secret in your .env before running in production."
+    )
 ALGORITHM = "HS256"
 TOKEN_EXPIRE_HOURS = 24
 

@@ -2,6 +2,7 @@ import os
 import httpx
 
 RERANKER_API_URL = os.getenv("RERANKER_API_URL", "")
+RERANK_THRESHOLD = 0.1  # FIXED: filter out low-confidence chunks
 
 
 class RerankerClient:
@@ -34,4 +35,6 @@ class RerankerClient:
                 scored.append((score, chunks[idx]))
 
         scored.sort(key=lambda x: x[0], reverse=True)
+        # FIXED: apply score threshold — discard chunks below RERANK_THRESHOLD
+        scored = [(s, c) for s, c in scored if s >= RERANK_THRESHOLD]
         return [chunk for _, chunk in scored] if scored else chunks

@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 MINIO_ENDPOINT = os.getenv("MINIO_ENDPOINT", "minio:9000")
 MINIO_USER = os.getenv("MINIO_USER", "admin")
 MINIO_PASSWORD = os.getenv("MINIO_PASSWORD", "admin")
-MINIO_BUCKET = os.getenv("MINIO_BUCKET", "test-docs")
+MINIO_BUCKET = os.getenv("MINIO_BUCKET", "docuflow-docs")  # FIXED: renamed from test-docs
 REDIS_URL = os.getenv("REDIS_URL", "redis://redis:6379/0")
 ALLOWED_ORIGINS = os.getenv("ALLOWED_ORIGINS", "http://localhost:3000").split(",")
 

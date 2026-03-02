@@ -2,7 +2,7 @@ import logging
 import os
 
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from auth_utils import get_current_user
@@ -29,7 +29,7 @@ except Exception:
 
 
 class ChatRequest(BaseModel):
-    question: str
+    question: str = Field(..., min_length=1)  # FIXED: reject empty questions
 
 
 @router.post("")
@@ -190,11 +190,11 @@ def chat_history(
     if not session:
         return []
 
+    # FIXED: sort ASC for chronological order; removed incorrect DESC+limit reversal
     messages = (
         db.query(ChatMessage)
         .filter(ChatMessage.session_id == session.id)
-        .order_by(ChatMessage.created_at.desc())
-        .limit(20)
+        .order_by(ChatMessage.created_at.asc())
         .all()
     )
     return [

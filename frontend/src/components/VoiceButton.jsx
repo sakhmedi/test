@@ -36,8 +36,13 @@ export default function VoiceButton({ onTranscribed }) {
       mediaRecorder.start();
       mediaRecorderRef.current = mediaRecorder;
       setRecording(true);
-    } catch {
-      setError('Microphone access denied.');
+    } catch (err) {
+      // FIXED: was using a single generic message; now maps error names to specific messages
+      if (err.name === 'NotAllowedError') {
+        setError('Microphone permission denied.');
+      } else {
+        setError('Could not access microphone: ' + err.message);
+      }
     }
   }
 

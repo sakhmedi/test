@@ -2,26 +2,27 @@ import os
 from openai import AsyncOpenAI
 
 # -------------------------------------------------------------
-# AlemLLM config — читается из .env
+# LLM config — reads standardised LLM_* vars first,
+# falls back to legacy ALEM_*/QWEN3_* for backward-compat.
+# FIXED: removed hardcoded fallback URL; removed per-model key dict.
 # -------------------------------------------------------------
-_BASE_URL = os.getenv("ALEM_API_BASE_URL", "https://api.alem.ai/v1")
-_DEFAULT_MODEL = os.getenv("DEFAULT_MODEL", "qwen3")
+_BASE_URL = os.getenv("LLM_API_URL") or os.getenv("ALEM_API_BASE_URL", "")
+_DEFAULT_MODEL = os.getenv("LLM_MODEL") or os.getenv("DEFAULT_MODEL", "qwen3")
+_API_KEY = (
+    os.getenv("LLM_API_KEY")
+    or os.getenv("QWEN3_API_KEY")
+    or os.getenv("ALEMLLM_API_KEY", "")
+)
 
-_API_KEYS: dict[str, str] = {
-    "qwen3": os.getenv("QWEN3_API_KEY", ""),
-    "alemllm": os.getenv("ALEMLLM_API_KEY", ""),
-}
 
-
-def _api_key_for(model: str) -> str:
-    """Return the right API key for the requested model."""
-    key = _API_KEYS.get(model) or _API_KEYS.get("alemllm", "")
-    if not key:
+def _api_key_for(model: str) -> str:  # noqa: ARG001 — model kept for API compat
+    """Return the configured API key (single key for all models)."""
+    if not _API_KEY:
         raise ValueError(
-            f"No API key configured for model '{model}'. "
-            "Set QWEN3_API_KEY or ALEMLLM_API_KEY in your .env."
+            "No LLM API key configured. Set LLM_API_KEY (or QWEN3_API_KEY / "
+            "ALEMLLM_API_KEY) in your .env."
         )
-    return key
+    return _API_KEY
 
 
 def get_client(model: str | None = None) -> tuple["AsyncOpenAI", str]:
@@ -38,6 +39,6 @@ def get_client(model: str | None = None) -> tuple["AsyncOpenAI", str]:
     model = model or _DEFAULT_MODEL
     client = AsyncOpenAI(
         api_key=_api_key_for(model),
-        base_url=_BASE_URL,
+        base_url=_BASE_URL or None,
     )
     return client, model

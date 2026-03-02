@@ -15,14 +15,17 @@ export default function DocumentsPage() {
   const [loading, setLoading] = useState(true);
   const [showUpload, setShowUpload] = useState(false);
   const [deleting, setDeleting] = useState(null);
+  const [error, setError] = useState('');  // FIXED: surface fetch/delete errors to user
 
   async function fetchDocs() {
     setLoading(true);
+    setError('');
     try {
       const res = await api.get('/documents/');
       setDocs(res.data);
-    } catch {
-      // ignore
+    } catch (err) {
+      // FIXED: was silently swallowing errors; now surfaces a message
+      setError(err.response?.data?.detail || 'Failed to load documents.');
     } finally {
       setLoading(false);
     }
@@ -36,8 +39,9 @@ export default function DocumentsPage() {
     try {
       await api.delete(`/documents/${id}`);
       setDocs((prev) => prev.filter((d) => d.id !== id));
-    } catch {
-      // ignore
+    } catch (err) {
+      // FIXED: was silently swallowing errors; now surfaces a message
+      setError(err.response?.data?.detail || 'Failed to delete document.');
     } finally {
       setDeleting(null);
     }
@@ -57,6 +61,10 @@ export default function DocumentsPage() {
             + Upload
           </button>
         </div>
+
+        {error && (
+          <p className="text-red-400 text-sm mb-4">{error}</p>
+        )}
 
         {loading ? (
           <p className="text-slate-400 text-sm">Loading…</p>

@@ -12,7 +12,8 @@ class RAGFlowClient:
 
     async def create_dataset(self, name: str) -> str:
         """Create a new knowledge-base dataset. Returns the dataset id."""
-        async with httpx.AsyncClient(base_url=self._base_url, headers=self._headers) as client:
+        # FIXED: added timeout=30
+        async with httpx.AsyncClient(base_url=self._base_url, headers=self._headers, timeout=30) as client:
             resp = await client.post("/api/v1/datasets", json={"name": name})
             resp.raise_for_status()
             data = resp.json()
@@ -20,7 +21,8 @@ class RAGFlowClient:
 
     async def upload_document(self, dataset_id: str, filename: str, file_bytes: bytes) -> str:
         """Upload a file to a dataset. Returns the document id."""
-        async with httpx.AsyncClient(base_url=self._base_url, headers=self._headers) as client:
+        # FIXED: added timeout=60 (upload may be slow for large files)
+        async with httpx.AsyncClient(base_url=self._base_url, headers=self._headers, timeout=60) as client:
             resp = await client.post(
                 f"/api/v1/datasets/{dataset_id}/documents",
                 files={"file": (filename, file_bytes)},
@@ -31,7 +33,8 @@ class RAGFlowClient:
 
     async def start_parsing(self, dataset_id: str, doc_id: str) -> None:
         """Trigger async parsing/indexing of a document."""
-        async with httpx.AsyncClient(base_url=self._base_url, headers=self._headers) as client:
+        # FIXED: added timeout=30
+        async with httpx.AsyncClient(base_url=self._base_url, headers=self._headers, timeout=30) as client:
             resp = await client.post(
                 f"/api/v1/datasets/{dataset_id}/chunks",
                 json={"document_ids": [doc_id]},
@@ -40,7 +43,8 @@ class RAGFlowClient:
 
     async def query(self, dataset_ids: list[str], question: str, top_k: int = 5) -> list[dict[str, Any]]:
         """Retrieve relevant chunks for a question across one or more datasets."""
-        async with httpx.AsyncClient(base_url=self._base_url, headers=self._headers) as client:
+        # FIXED: added timeout=30
+        async with httpx.AsyncClient(base_url=self._base_url, headers=self._headers, timeout=30) as client:
             resp = await client.post(
                 "/api/v1/retrieval",
                 json={
@@ -55,7 +59,8 @@ class RAGFlowClient:
 
     async def delete_document(self, dataset_id: str, doc_id: str) -> bool:
         """Delete a document from a dataset."""
-        async with httpx.AsyncClient(base_url=self._base_url, headers=self._headers) as client:
+        # FIXED: added timeout=30
+        async with httpx.AsyncClient(base_url=self._base_url, headers=self._headers, timeout=30) as client:
             resp = await client.request(
                 "DELETE",
                 f"/api/v1/datasets/{dataset_id}/documents",
