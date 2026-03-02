@@ -11,7 +11,7 @@ from minio.error import S3Error
 from sqlalchemy import text
 
 from database import engine, Base
-from routers import auth, documents, chat
+from routers import auth, documents, chat, speech
 import llm as llm_module
 
 logging.basicConfig(level=logging.INFO)
@@ -65,6 +65,7 @@ app.add_middleware(
 app.include_router(auth.router)
 app.include_router(documents.router, prefix="/api")
 app.include_router(chat.router, prefix="/api")
+app.include_router(speech.router, prefix="/api")
 
 
 @app.get("/health", tags=["health"])

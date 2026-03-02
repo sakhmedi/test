@@ -5,9 +5,11 @@ from typing import List
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from sqlalchemy.orm import Session
 
+from auth_utils import get_current_user
 from database import get_db
 from models import Company, Document
 from services.minio_client import MinIOClient
+from services.ocr_client import OCRClient
 from services.ragflow_client import RAGFlowClient
 
 logger = logging.getLogger(__name__)
@@ -18,8 +20,13 @@ ALLOWED_MIME_TYPES = {
     "application/pdf",
     "application/msword",
     "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "image/png",
+    "image/jpeg",
+    "image/jpg",
 }
-ALLOWED_EXTENSIONS = {".pdf", ".doc", ".docx"}
+ALLOWED_EXTENSIONS = {".pdf", ".doc", ".docx", ".png", ".jpg", ".jpeg"}
+IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg"}
+IMAGE_MIME_TYPES = {"image/png", "image/jpeg", "image/jpg"}
 
 
 def _ext(filename: str) -> str:
@@ -27,36 +34,47 @@ def _ext(filename: str) -> str:
     return filename[idx:].lower() if idx != -1 else ""
 
 
-def get_or_create_company(db: Session, company_id_str: str) -> Company:
-    company = db.query(Company).filter(Company.id == company_id_str).first()
-    if not company:
-        slug = f"company-{company_id_str[:8]}"
-        company = Company(id=company_id_str, name=slug, slug=slug)
-        db.add(company)
-        db.commit()
-        db.refresh(company)
-    return company
+def _is_image(content_type: str, filename: str) -> bool:
+    return content_type in IMAGE_MIME_TYPES or _ext(filename) in IMAGE_EXTENSIONS
 
 
 @router.post("/upload")
 async def upload_document(
-    company_id: str = Form(...),
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
 ):
+    company_id = current_user["company_id"]
+
     # Validate file type
     ext = _ext(file.filename or "")
     if file.content_type not in ALLOWED_MIME_TYPES and ext not in ALLOWED_EXTENSIONS:
-        raise HTTPException(status_code=400, detail="Only PDF and Word documents are allowed.")
-
-    company = get_or_create_company(db, company_id)
+        raise HTTPException(status_code=400, detail="Only PDF, Word, and image files are allowed.")
 
     file_bytes = await file.read()
+    original_filename = file.filename or f"upload{ext}"
+
+    # OCR branch: images and scanned PDFs get converted to text first
+    if _is_image(file.content_type or "", original_filename):
+        try:
+            ocr = OCRClient()
+            extracted_text = await ocr.extract_text(file_bytes, original_filename)
+            # Replace file_bytes with text content for RAGFlow
+            file_bytes = extracted_text.encode("utf-8")
+            original_filename = original_filename.rsplit(".", 1)[0] + "_ocr.txt"
+            ext = ".txt"
+            content_type = "text/plain"
+        except Exception as exc:
+            logger.warning("OCR failed, uploading raw file: %s", exc)
+            content_type = file.content_type or "application/octet-stream"
+    else:
+        content_type = file.content_type or "application/octet-stream"
+
     object_name = f"{company_id}/{uuid.uuid4()}{ext}"
 
     # Upload to MinIO
     minio = MinIOClient()
-    minio.upload_file(object_name, file_bytes, file.content_type or "application/octet-stream")
+    minio.upload_file(object_name, file_bytes, content_type)
 
     # Determine or create RAGFlow dataset for this company
     ragflow = RAGFlowClient()
@@ -78,14 +96,14 @@ async def upload_document(
     ragflow_doc_id = None
     if kb_id:
         try:
-            ragflow_doc_id = await ragflow.upload_document(kb_id, file.filename or object_name, file_bytes)
+            ragflow_doc_id = await ragflow.upload_document(kb_id, original_filename, file_bytes)
             await ragflow.start_parsing(kb_id, ragflow_doc_id)
         except Exception as exc:
             logger.warning("RAGFlow upload/parse failed: %s", exc)
 
     doc = Document(
         company_id=company_id,
-        filename=file.filename or object_name,
+        filename=original_filename,
         minio_key=object_name,
         status="processing",
         ragflow_kb_id=kb_id,
@@ -99,7 +117,11 @@ async def upload_document(
 
 
 @router.get("/")
-def list_documents(company_id: str, db: Session = Depends(get_db)):
+def list_documents(
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    company_id = current_user["company_id"]
     docs = db.query(Document).filter(Document.company_id == company_id).all()
     return [
         {
@@ -113,8 +135,17 @@ def list_documents(company_id: str, db: Session = Depends(get_db)):
 
 
 @router.delete("/{document_id}")
-async def delete_document(document_id: str, db: Session = Depends(get_db)):
-    doc = db.query(Document).filter(Document.id == document_id).first()
+async def delete_document(
+    document_id: str,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    company_id = current_user["company_id"]
+    doc = (
+        db.query(Document)
+        .filter(Document.id == document_id, Document.company_id == company_id)
+        .first()
+    )
     if not doc:
         raise HTTPException(status_code=404, detail="Document not found.")
 
