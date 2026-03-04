@@ -43,8 +43,7 @@ class RAGFlowClient:
 
     async def query(self, dataset_ids: list[str], question: str, top_k: int = 5) -> list[dict[str, Any]]:
         """Retrieve relevant chunks for a question across one or more datasets."""
-        # FIXED: added timeout=30
-        async with httpx.AsyncClient(base_url=self._base_url, headers=self._headers, timeout=30) as client:
+        async with httpx.AsyncClient(base_url=self._base_url, headers=self._headers, timeout=10) as client:
             resp = await client.post(
                 "/api/v1/retrieval",
                 json={

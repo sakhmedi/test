@@ -27,6 +27,11 @@ try:
 except Exception:
     _langfuse = None
 
+# Silence Langfuse SDK's internal retry/error logs — errors are non-critical
+if _langfuse:
+    import logging as _logging
+    _logging.getLogger("langfuse").setLevel(_logging.CRITICAL)
+
 
 class ChatRequest(BaseModel):
     question: str = Field(..., min_length=1)  # FIXED: reject empty questions
@@ -122,6 +127,7 @@ async def chat(
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_message},
             ],
+            timeout=30,
         )
         answer = response.choices[0].message.content or ""
     except Exception as exc:
@@ -139,10 +145,9 @@ async def chat(
         except Exception:
             pass
     if trace:
-        try:
-            _langfuse.flush()
-        except Exception:
-            pass
+        import asyncio
+        loop = asyncio.get_event_loop()
+        loop.run_in_executor(None, _langfuse.flush)
 
     # Build sources list
     sources = []
