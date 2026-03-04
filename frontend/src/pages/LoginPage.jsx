@@ -37,8 +37,8 @@ export default function LoginPage() {
           <span className="text-gray-900 font-semibold text-xl">DocuFlow AI</span>
         </div>
 
-        <h1 className="text-2xl font-semibold text-gray-900 mb-1 text-center">Welcome back</h1>
-        <p className="text-gray-500 text-sm text-center mb-8">Sign in to your account</p>
+        <h1 className="text-2xl font-semibold text-gray-900 mb-1 text-center">Добро пожаловать</h1>
+        <p className="text-gray-500 text-sm text-center mb-8">Войдите в свой аккаунт</p>
 
         <form
           onSubmit={handleSubmit}
@@ -51,7 +51,7 @@ export default function LoginPage() {
           )}
 
           <div>
-            <label className="block text-gray-700 text-sm font-medium mb-1">Email</label>
+            <label className="block text-gray-700 text-sm font-medium mb-1">Электронная почта</label>
             <input
               type="email"
               required
@@ -63,7 +63,7 @@ export default function LoginPage() {
           </div>
 
           <div>
-            <label className="block text-gray-700 text-sm font-medium mb-1">Password</label>
+            <label className="block text-gray-700 text-sm font-medium mb-1">Пароль</label>
             <input
               type="password"
               required
@@ -79,14 +79,14 @@ export default function LoginPage() {
             disabled={loading}
             className="w-full bg-[#1a56db] hover:bg-[#1648c0] disabled:opacity-50 text-white font-medium py-2 rounded-lg text-sm transition-colors"
           >
-            {loading ? 'Signing in…' : 'Sign in'}
+            {loading ? 'Вход…' : 'Войти'}
           </button>
         </form>
 
         <p className="text-gray-500 text-sm text-center mt-4">
-          No account?{' '}
+          Нет аккаунта?{' '}
           <Link to="/register" className="text-[#1a56db] hover:underline">
-            Register your company
+            Зарегистрируйтесь
           </Link>
         </p>
       </div>

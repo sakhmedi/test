@@ -35,7 +35,8 @@ if _langfuse:
 
 
 class ChatRequest(BaseModel):
-    question: str = Field(..., min_length=1)  # FIXED: reject empty questions
+    question: str = Field(..., min_length=1)
+    session_id: str | None = None
 
 
 @router.post("")
@@ -152,14 +153,21 @@ async def chat(
             }
         )
 
-    # Persist to DB — find or create a ChatSession for this company
-    session = (
-        db.query(ChatSession)
-        .filter(ChatSession.company_id == company_id)
-        .order_by(ChatSession.created_at.desc())
-        .first()
-    )
-    if not session:
+    # Persist to DB — find or create a ChatSession
+    if body.session_id:
+        # Use existing session if found, otherwise create new
+        session = (
+            db.query(ChatSession)
+            .filter(ChatSession.id == body.session_id, ChatSession.company_id == company_id)
+            .first()
+        )
+        if not session:
+            session = ChatSession(company_id=company_id, title=body.question[:80])
+            db.add(session)
+            db.commit()
+            db.refresh(session)
+    else:
+        # Always create a new session when no session_id provided
         session = ChatSession(company_id=company_id, title=body.question[:80])
         db.add(session)
         db.commit()
@@ -169,7 +177,82 @@ async def chat(
     db.add(ChatMessage(session_id=session.id, role="assistant", content=answer))
     db.commit()
 
-    return {"answer": answer, "sources": sources}
+    return {"answer": answer, "sources": sources, "session_id": str(session.id)}
+
+
+@router.get("/sessions")
+def list_sessions(
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    company_id = current_user["company_id"]
+    sessions = (
+        db.query(ChatSession)
+        .filter(ChatSession.company_id == company_id)
+        .order_by(ChatSession.created_at.desc())
+        .all()
+    )
+    return [
+        {
+            "id": str(s.id),
+            "title": s.title,
+            "created_at": s.created_at.isoformat(),
+        }
+        for s in sessions
+    ]
+
+
+@router.get("/sessions/{session_id}")
+def get_session_messages(
+    session_id: str,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    company_id = current_user["company_id"]
+    session = (
+        db.query(ChatSession)
+        .filter(ChatSession.id == session_id, ChatSession.company_id == company_id)
+        .first()
+    )
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    messages = (
+        db.query(ChatMessage)
+        .filter(ChatMessage.session_id == session.id)
+        .order_by(ChatMessage.created_at.asc())
+        .all()
+    )
+    return [
+        {
+            "id": m.id,
+            "role": m.role,
+            "content": m.content,
+            "created_at": m.created_at.isoformat(),
+        }
+        for m in messages
+    ]
+
+
+@router.delete("/sessions/{session_id}")
+def delete_session(
+    session_id: str,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    company_id = current_user["company_id"]
+    session = (
+        db.query(ChatSession)
+        .filter(ChatSession.id == session_id, ChatSession.company_id == company_id)
+        .first()
+    )
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    db.query(ChatMessage).filter(ChatMessage.session_id == session.id).delete()
+    db.delete(session)
+    db.commit()
+    return {"detail": "deleted"}
 
 
 @router.get("/history")
@@ -187,7 +270,6 @@ def chat_history(
     if not session:
         return []
 
-    # FIXED: sort ASC for chronological order; removed incorrect DESC+limit reversal
     messages = (
         db.query(ChatMessage)
         .filter(ChatMessage.session_id == session.id)

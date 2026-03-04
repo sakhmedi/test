@@ -42,8 +42,8 @@ export default function RegisterPage() {
           <span className="text-gray-900 font-semibold text-xl">DocuFlow AI</span>
         </div>
 
-        <h1 className="text-2xl font-semibold text-gray-900 mb-1 text-center">Create your workspace</h1>
-        <p className="text-gray-500 text-sm text-center mb-8">Register your company on DocuFlow AI</p>
+        <h1 className="text-2xl font-semibold text-gray-900 mb-1 text-center">Создайте рабочее пространство</h1>
+        <p className="text-gray-500 text-sm text-center mb-8">Зарегистрируйте компанию в DocuFlow AI</p>
 
         <form
           onSubmit={handleSubmit}
@@ -56,7 +56,7 @@ export default function RegisterPage() {
           )}
 
           <div>
-            <label className="block text-gray-700 text-sm font-medium mb-1">Company name</label>
+            <label className="block text-gray-700 text-sm font-medium mb-1">Название компании</label>
             <input
               type="text"
               required
@@ -68,7 +68,7 @@ export default function RegisterPage() {
           </div>
 
           <div>
-            <label className="block text-gray-700 text-sm font-medium mb-1">Email</label>
+            <label className="block text-gray-700 text-sm font-medium mb-1">Электронная почта</label>
             <input
               type="email"
               required
@@ -80,7 +80,7 @@ export default function RegisterPage() {
           </div>
 
           <div>
-            <label className="block text-gray-700 text-sm font-medium mb-1">Password</label>
+            <label className="block text-gray-700 text-sm font-medium mb-1">Пароль</label>
             <input
               type="password"
               required
@@ -97,14 +97,14 @@ export default function RegisterPage() {
             disabled={loading}
             className="w-full bg-[#1a56db] hover:bg-[#1648c0] disabled:opacity-50 text-white font-medium py-2 rounded-lg text-sm transition-colors"
           >
-            {loading ? 'Creating workspace…' : 'Create workspace'}
+            {loading ? 'Регистрация…' : 'Зарегистрироваться'}
           </button>
         </form>
 
         <p className="text-gray-500 text-sm text-center mt-4">
-          Already have an account?{' '}
+          Уже есть аккаунт?{' '}
           <Link to="/login" className="text-[#1a56db] hover:underline">
-            Sign in
+            Войти
           </Link>
         </p>
       </div>
