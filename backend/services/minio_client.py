@@ -12,12 +12,15 @@ class MinIOClient:
         access_key = os.getenv("MINIO_USER", "admin")
         secret_key = os.getenv("MINIO_PASSWORD", "admin")
         self.bucket = os.getenv("MINIO_BUCKET", "docuflow-docs")  # FIXED: renamed from test-docs
+        secure = os.getenv("MINIO_SECURE", "false").lower() == "true"
         self._client = Minio(
             endpoint,
             access_key=access_key,
             secret_key=secret_key,
-            secure=False,
+            secure=secure,
         )
+        if not self._client.bucket_exists(self.bucket):
+            self._client.make_bucket(self.bucket)
 
     def upload_file(self, object_name: str, data: bytes, content_type: str) -> str:
         self._client.put_object(

@@ -10,13 +10,15 @@ from database import get_db
 from models import Company, Document
 from services.minio_client import MinIOClient
 from services.ocr_client import OCRClient
-from services.ragflow_client import RAGFlowClient
+from services.embedder_client import EmbedderClient
+from services.text_extractor import extract_pages, chunk_pages
+from services.milvus_store import MilvusStore
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/documents", tags=["documents"])
 
-MAX_UPLOAD_BYTES = 50 * 1024 * 1024  # 50 MB — FIXED: enforce file-size limit
+MAX_UPLOAD_BYTES = 50 * 1024 * 1024  # 50 MB
 
 ALLOWED_MIME_TYPES = {
     "application/pdf",
@@ -40,7 +42,7 @@ def _is_image(content_type: str, filename: str) -> bool:
     return content_type in IMAGE_MIME_TYPES or _ext(filename) in IMAGE_EXTENSIONS
 
 
-@router.post("/upload", status_code=status.HTTP_201_CREATED)  # FIXED: return 201 Created
+@router.post("/upload", status_code=status.HTTP_201_CREATED)
 async def upload_document(
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
@@ -54,17 +56,15 @@ async def upload_document(
         raise HTTPException(status_code=400, detail="Only PDF, Word, and image files are allowed.")
 
     file_bytes = await file.read()
-    # FIXED: reject files larger than 50 MB
     if len(file_bytes) > MAX_UPLOAD_BYTES:
         raise HTTPException(status_code=413, detail="File too large. Maximum size is 50 MB.")
     original_filename = file.filename or f"upload{ext}"
 
-    # OCR branch: images and scanned PDFs get converted to text first
+    # OCR branch: images get converted to text first
     if _is_image(file.content_type or "", original_filename):
         try:
             ocr = OCRClient()
             extracted_text = await ocr.extract_text(file_bytes, original_filename)
-            # Replace file_bytes with text content for RAGFlow
             file_bytes = extracted_text.encode("utf-8")
             original_filename = original_filename.rsplit(".", 1)[0] + "_ocr.txt"
             ext = ".txt"
@@ -81,42 +81,41 @@ async def upload_document(
     minio = MinIOClient()
     minio.upload_file(object_name, file_bytes, content_type)
 
-    # Determine or create RAGFlow dataset for this company
-    ragflow = RAGFlowClient()
-    existing_doc = (
-        db.query(Document)
-        .filter(Document.company_id == company_id, Document.ragflow_kb_id.isnot(None))
-        .first()
-    )
-    if existing_doc:
-        kb_id = existing_doc.ragflow_kb_id
-    else:
-        try:
-            kb_id = await ragflow.create_dataset(f"company-{company_id[:8]}")
-        except Exception as exc:
-            logger.warning("RAGFlow create_dataset failed: %s", exc)
-            kb_id = None
-
-    # Upload to RAGFlow and start parsing
-    ragflow_doc_id = None
-    if kb_id:
-        try:
-            ragflow_doc_id = await ragflow.upload_document(kb_id, original_filename, file_bytes)
-            await ragflow.start_parsing(kb_id, ragflow_doc_id)
-        except Exception as exc:
-            logger.warning("RAGFlow upload/parse failed: %s", exc)
+    # Extract text, chunk, embed, and store in Milvus
+    pages = extract_pages(original_filename, file_bytes)
+    chunks = chunk_pages(pages)
+    doc_status = "processing"
 
     doc = Document(
         company_id=company_id,
         filename=original_filename,
         minio_key=object_name,
-        status="processing",
-        ragflow_kb_id=kb_id,
-        ragflow_doc_id=ragflow_doc_id,
+        status=doc_status,
+        ragflow_kb_id=None,
+        ragflow_doc_id=None,
     )
     db.add(doc)
     db.commit()
     db.refresh(doc)
+
+    if chunks:
+        try:
+            embedder = EmbedderClient()
+            texts = [c["text"] for c in chunks]
+            all_embeddings: list[list[float]] = []
+            for i in range(0, len(texts), 100):
+                all_embeddings.extend(await embedder.embed_many(texts[i : i + 100]))
+            store = MilvusStore()
+            store.insert(company_id, doc.id, original_filename, chunks, all_embeddings)
+            doc_status = "indexed"
+        except Exception as exc:
+            logger.warning("Embedding/indexing failed: %s", exc)
+            doc_status = "error"
+    else:
+        doc_status = "indexed"  # no text to extract (e.g. .doc binary)
+
+    doc.status = doc_status
+    db.commit()
 
     return {"id": doc.id, "filename": doc.filename, "status": doc.status}
 
@@ -157,12 +156,11 @@ async def delete_document(
     minio = MinIOClient()
     minio.delete_file(doc.minio_key)
 
-    if doc.ragflow_kb_id and doc.ragflow_doc_id:
-        ragflow = RAGFlowClient()
-        try:
-            await ragflow.delete_document(doc.ragflow_kb_id, doc.ragflow_doc_id)
-        except Exception as exc:
-            logger.warning("RAGFlow delete_document failed: %s", exc)
+    try:
+        store = MilvusStore()
+        store.delete_by_doc(doc.id)
+    except Exception as exc:
+        logger.warning("Milvus delete_by_doc failed: %s", exc)
 
     db.delete(doc)
     db.commit()

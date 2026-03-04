@@ -8,8 +8,9 @@ from sqlalchemy.orm import Session
 from auth_utils import get_current_user
 from database import get_db
 from llm import get_client
-from models import ChatMessage, ChatSession, Document
-from services.ragflow_client import RAGFlowClient
+from models import ChatMessage, ChatSession
+from services.embedder_client import EmbedderClient
+from services.milvus_store import MilvusStore
 from services.reranker_client import RerankerClient
 
 logger = logging.getLogger(__name__)
@@ -54,35 +55,26 @@ async def chat(
         except Exception as exc:
             logger.warning("Langfuse trace init failed: %s", exc)
 
-    # Collect all dataset IDs for this company
-    docs = (
-        db.query(Document)
-        .filter(
-            Document.company_id == company_id,
-            Document.ragflow_kb_id.isnot(None),
-        )
-        .all()
-    )
-    dataset_ids = list({d.ragflow_kb_id for d in docs if d.ragflow_kb_id})
-
+    # Embed the question and search Milvus for relevant chunks
     chunks: list[dict] = []
-    if dataset_ids:
-        ragflow = RAGFlowClient()
-        retrieval_span = None
-        if trace:
-            try:
-                retrieval_span = trace.span(name="retrieval", input={"query": body.question})
-            except Exception:
-                pass
+    retrieval_span = None
+    if trace:
         try:
-            chunks = await ragflow.query(dataset_ids, body.question)
-        except Exception as exc:
-            logger.warning("RAGFlow query failed: %s", exc)
-        if retrieval_span:
-            try:
-                retrieval_span.end(output={"chunk_count": len(chunks)})
-            except Exception:
-                pass
+            retrieval_span = trace.span(name="retrieval", input={"query": body.question})
+        except Exception:
+            pass
+    try:
+        embedder = EmbedderClient()
+        query_vec = await embedder.embed_one(body.question)
+        store = MilvusStore()
+        chunks = store.search(company_id, query_vec, top_k=5)
+    except Exception as exc:
+        logger.warning("Milvus search failed: %s", exc)
+    if retrieval_span:
+        try:
+            retrieval_span.end(output={"chunk_count": len(chunks)})
+        except Exception:
+            pass
 
     # Rerank chunks
     if chunks:
@@ -154,9 +146,9 @@ async def chat(
     for chunk in chunks:
         sources.append(
             {
-                "filename": chunk.get("document_keyword", chunk.get("doc_name", "")),
-                "page": chunk.get("positions", [None])[0],
-                "excerpt": (chunk.get("content", chunk.get("text", "")) or "")[:200],
+                "filename": chunk.get("filename", ""),
+                "page": chunk.get("page", None),
+                "excerpt": chunk.get("text", "")[:200],
             }
         )
 
