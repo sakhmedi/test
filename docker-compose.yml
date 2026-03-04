@@ -11,6 +11,7 @@ volumes:
   etcd_data:
   elasticsearch_data:
   ragflow_data:
+  chroma_data:
 
 services:
 
@@ -183,6 +184,8 @@ services:
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
       REDIS_URL: redis://redis:6379/0
+    volumes:
+      - chroma_data:/data/chroma
     depends_on:
       postgres:
         condition: service_healthy

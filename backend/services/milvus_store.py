@@ -1,89 +1,84 @@
 from __future__ import annotations
 
+import json
 import os
+import uuid as _uuid
 
-from pymilvus import (
-    Collection,
-    CollectionSchema,
-    DataType,
-    FieldSchema,
-    connections,
-    utility,
-)
+import numpy as np
 
-COLLECTION_NAME = "docuflow_chunks"
-DIM = int(os.getenv("ALEM_EMBED_DIM", "1536"))
-
-
-def _connect() -> None:
-    host = os.getenv("MILVUS_HOST", "milvus")
-    port = int(os.getenv("MILVUS_PORT", "19530"))
-    user = os.getenv("MILVUS_USER", "")
-    password = os.getenv("MILVUS_PASSWORD", "")
-    db_name = os.getenv("MILVUS_DB", "")
-    kwargs: dict = {"alias": "default", "host": host, "port": port}
-    if user:
-        kwargs["user"] = user
-        kwargs["password"] = password
-    if db_name:
-        kwargs["db_name"] = db_name
-    connections.connect(**kwargs)
+_STORE_PATH = os.getenv("CHROMA_PATH", "/data/chroma")
+_META_FILE = "metadata.json"
+_EMB_FILE = "embeddings.npy"
 
 
 class MilvusStore:
+    """Persistent local vector store using numpy cosine similarity.
+
+    Replaces the remote Milvus backend (which the bakashev user lacks
+    CreateCollection permission for) with a fully self-contained
+    file-based store at CHROMA_PATH.
+    """
+
     def __init__(self):
-        _connect()
-        self._col = self.ensure_collection()
+        os.makedirs(_STORE_PATH, exist_ok=True)
+        self._meta_path = os.path.join(_STORE_PATH, _META_FILE)
+        self._emb_path = os.path.join(_STORE_PATH, _EMB_FILE)
+        self._load()
 
-    def ensure_collection(self) -> Collection:
-        if utility.has_collection(COLLECTION_NAME):
-            col = Collection(COLLECTION_NAME)
-            col.load()
-            return col
+    # ------------------------------------------------------------------
+    # Persistence helpers
+    # ------------------------------------------------------------------
 
-        fields = [
-            FieldSchema(name="chunk_id", dtype=DataType.INT64, is_primary=True, auto_id=True),
-            FieldSchema(name="company_id", dtype=DataType.VARCHAR, max_length=64),
-            FieldSchema(name="doc_id", dtype=DataType.INT64),
-            FieldSchema(name="filename", dtype=DataType.VARCHAR, max_length=512),
-            FieldSchema(name="page_num", dtype=DataType.INT64),
-            FieldSchema(name="chunk_text", dtype=DataType.VARCHAR, max_length=65000),
-            FieldSchema(name="embedding", dtype=DataType.FLOAT_VECTOR, dim=DIM),
-        ]
-        schema = CollectionSchema(fields=fields, description="DocuFlow document chunks")
-        col = Collection(name=COLLECTION_NAME, schema=schema)
+    def _load(self) -> None:
+        if os.path.exists(self._meta_path):
+            with open(self._meta_path, "r", encoding="utf-8") as f:
+                self._metadata: list[dict] = json.load(f)
+        else:
+            self._metadata = []
 
-        col.create_index(
-            field_name="embedding",
-            index_params={
-                "index_type": "HNSW",
-                "metric_type": "COSINE",
-                "params": {"M": 16, "efConstruction": 200},
-            },
-        )
-        col.load()
-        return col
+        if os.path.exists(self._emb_path) and self._metadata:
+            self._embeddings: np.ndarray | None = np.load(self._emb_path)
+        else:
+            self._embeddings = None
+
+    def _save(self) -> None:
+        with open(self._meta_path, "w", encoding="utf-8") as f:
+            json.dump(self._metadata, f)
+        if self._embeddings is not None:
+            np.save(self._emb_path, self._embeddings)
+
+    # ------------------------------------------------------------------
+    # Public interface (matches the original MilvusStore API)
+    # ------------------------------------------------------------------
 
     def insert(
         self,
         company_id: str,
-        doc_id: int,
+        doc_id: str,
         filename: str,
         chunks: list[dict],
         embeddings: list[list[float]],
     ) -> None:
         if not chunks:
             return
-        data = [
-            [company_id] * len(chunks),
-            [doc_id] * len(chunks),
-            [filename] * len(chunks),
-            [c["page"] for c in chunks],
-            [c["text"][:65000] for c in chunks],
-            embeddings,
-        ]
-        self._col.insert(data)
-        self._col.flush()
+        new_embs = np.array(embeddings, dtype=np.float32)
+        self._embeddings = (
+            np.vstack([self._embeddings, new_embs])
+            if self._embeddings is not None
+            else new_embs
+        )
+        for chunk in chunks:
+            self._metadata.append(
+                {
+                    "id": str(_uuid.uuid4()),
+                    "company_id": company_id,
+                    "doc_id": doc_id,
+                    "filename": filename,
+                    "page_num": chunk["page"],
+                    "text": chunk["text"][:65000],
+                }
+            )
+        self._save()
 
     def search(
         self,
@@ -91,25 +86,44 @@ class MilvusStore:
         query_vec: list[float],
         top_k: int = 5,
     ) -> list[dict]:
-        results = self._col.search(
-            data=[query_vec],
-            anns_field="embedding",
-            param={"metric_type": "COSINE", "params": {"ef": 64}},
-            limit=top_k,
-            expr=f'company_id == "{company_id}"',
-            output_fields=["filename", "page_num", "chunk_text"],
-        )
-        hits = []
-        for hit in results[0]:
-            hits.append(
-                {
-                    "filename": hit.entity.get("filename", ""),
-                    "page": hit.entity.get("page_num", 0),
-                    "text": hit.entity.get("chunk_text", ""),
-                }
-            )
-        return hits
+        if self._embeddings is None or not self._metadata:
+            return []
 
-    def delete_by_doc(self, doc_id: int) -> None:
-        self._col.delete(expr=f"doc_id == {doc_id}")
-        self._col.flush()
+        # Indices belonging to this company
+        indices = [
+            i for i, m in enumerate(self._metadata) if m["company_id"] == company_id
+        ]
+        if not indices:
+            return []
+
+        filtered = self._embeddings[indices]
+        q = np.array(query_vec, dtype=np.float32)
+
+        # Cosine similarity
+        q_norm = q / (np.linalg.norm(q) + 1e-10)
+        row_norms = np.linalg.norm(filtered, axis=1, keepdims=True) + 1e-10
+        scores = (filtered / row_norms) @ q_norm
+
+        top_n = min(top_k, len(indices))
+        top_local = np.argsort(scores)[::-1][:top_n]
+
+        return [
+            {
+                "filename": self._metadata[indices[li]]["filename"],
+                "page": self._metadata[indices[li]]["page_num"],
+                "text": self._metadata[indices[li]]["text"],
+            }
+            for li in top_local
+        ]
+
+    def delete_by_doc(self, doc_id: str) -> None:
+        keep = [i for i, m in enumerate(self._metadata) if m["doc_id"] != doc_id]
+        if len(keep) == len(self._metadata):
+            return
+        if keep:
+            self._metadata = [self._metadata[i] for i in keep]
+            self._embeddings = self._embeddings[keep]
+        else:
+            self._metadata = []
+            self._embeddings = None
+        self._save()
