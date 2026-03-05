@@ -9,7 +9,7 @@ from auth_utils import get_current_user
 from database import get_db
 from models import Company, Document
 from services.minio_client import MinIOClient
-from services.ocr_client import OCRClient
+from services.ocr_client import VisionClient
 from services.embedder_client import EmbedderClient
 from services.text_extractor import extract_pages, chunk_pages
 from services.milvus_store import MilvusStore
@@ -24,13 +24,18 @@ ALLOWED_MIME_TYPES = {
     "application/pdf",
     "application/msword",
     "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "text/plain",
     "image/png",
     "image/jpeg",
     "image/jpg",
+    "image/tiff",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    "application/vnd.ms-excel",
+    "application/vnd.openxmlformats-officedocument.presentationml.presentation",
 }
-ALLOWED_EXTENSIONS = {".pdf", ".doc", ".docx", ".png", ".jpg", ".jpeg"}
-IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg"}
-IMAGE_MIME_TYPES = {"image/png", "image/jpeg", "image/jpg"}
+ALLOWED_EXTENSIONS = {".pdf", ".doc", ".docx", ".txt", ".png", ".jpg", ".jpeg", ".tiff", ".xlsx", ".xls", ".pptx"}
+IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".tiff"}
+IMAGE_MIME_TYPES = {"image/png", "image/jpeg", "image/jpg", "image/tiff"}
 
 
 def _ext(filename: str) -> str:
@@ -53,24 +58,27 @@ async def upload_document(
     # Validate file type
     ext = _ext(file.filename or "")
     if file.content_type not in ALLOWED_MIME_TYPES and ext not in ALLOWED_EXTENSIONS:
-        raise HTTPException(status_code=400, detail="Only PDF, Word, and image files are allowed.")
+        raise HTTPException(
+            status_code=400,
+            detail="Unsupported file type. Allowed: PDF, Word (.doc/.docx), plain text, images (.png/.jpg/.jpeg/.tiff), spreadsheets (.xlsx/.xls), presentations (.pptx).",
+        )
 
     file_bytes = await file.read()
     if len(file_bytes) > MAX_UPLOAD_BYTES:
         raise HTTPException(status_code=413, detail="File too large. Maximum size is 50 MB.")
     original_filename = file.filename or f"upload{ext}"
 
-    # OCR branch: images get converted to text first
+    # Vision branch: images are sent to Qwen VLM to extract text
     if _is_image(file.content_type or "", original_filename):
         try:
-            ocr = OCRClient()
-            extracted_text = await ocr.extract_text(file_bytes, original_filename)
+            vision = VisionClient()
+            extracted_text = await vision.extract_text(file_bytes, original_filename)
             file_bytes = extracted_text.encode("utf-8")
-            original_filename = original_filename.rsplit(".", 1)[0] + "_ocr.txt"
+            original_filename = original_filename.rsplit(".", 1)[0] + "_extracted.txt"
             ext = ".txt"
             content_type = "text/plain"
         except Exception as exc:
-            logger.warning("OCR failed, uploading raw file: %s", exc)
+            logger.warning("Vision extraction failed, uploading raw file: %s", exc)
             content_type = file.content_type or "application/octet-stream"
     else:
         content_type = file.content_type or "application/octet-stream"

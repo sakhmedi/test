@@ -1,13 +1,40 @@
 import { useRef, useState } from 'react';
 import api from '../api';
 
+const ALLOWED_EXTENSIONS = new Set([
+  '.pdf', '.docx', '.doc', '.txt',
+  '.png', '.jpg', '.jpeg', '.tiff',
+  '.xlsx', '.xls',
+  '.pptx',
+]);
+
+function getFileIcon(filename) {
+  const ext = filename.slice(filename.lastIndexOf('.')).toLowerCase();
+  if (['.png', '.jpg', '.jpeg', '.tiff'].includes(ext)) return '🖼️';
+  if (['.xlsx', '.xls'].includes(ext)) return '📊';
+  if (['.pptx'].includes(ext)) return '📑';
+  return '📄';
+}
+
+function getExt(filename) {
+  const idx = filename.lastIndexOf('.');
+  return idx !== -1 ? filename.slice(idx).toLowerCase() : '';
+}
+
 export default function UploadModal({ onClose, onUploaded }) {
   const [dragging, setDragging] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState('');
+  const [selectedFile, setSelectedFile] = useState(null);
   const inputRef = useRef(null);
 
   async function uploadFile(file) {
+    const ext = getExt(file.name);
+    if (!ALLOWED_EXTENSIONS.has(ext)) {
+      setError(`Unsupported format "${ext}". Allowed: PDF, Word, TXT, PNG, JPG, TIFF, XLSX, XLS, PPTX.`);
+      return;
+    }
+    setSelectedFile(file);
     setUploading(true);
     setError('');
     try {
@@ -56,14 +83,24 @@ export default function UploadModal({ onClose, onUploaded }) {
             dragging ? 'border-indigo-400 bg-indigo-900/20' : 'border-slate-600 hover:border-slate-400'
           }`}
         >
-          <p className="text-slate-300 mb-1">Drag &amp; drop a file here</p>
-          <p className="text-slate-500 text-sm">or click to browse</p>
-          <p className="text-slate-600 text-xs mt-2">PDF, Word, PNG, JPG supported</p>
+          {selectedFile && uploading ? (
+            <p className="text-slate-200 text-sm">
+              {getFileIcon(selectedFile.name)} {selectedFile.name}
+            </p>
+          ) : (
+            <>
+              <p className="text-slate-300 mb-1">Drag &amp; drop a file here</p>
+              <p className="text-slate-500 text-sm">or click to browse</p>
+              <p className="text-slate-600 text-xs mt-2">
+                📄 PDF, Word, TXT &nbsp;|&nbsp; 🖼️ PNG, JPG, TIFF &nbsp;|&nbsp; 📊 XLSX, XLS &nbsp;|&nbsp; 📑 PPTX
+              </p>
+            </>
+          )}
           <input
             ref={inputRef}
             type="file"
             className="hidden"
-            accept=".pdf,.doc,.docx,.png,.jpg,.jpeg"
+            accept=".pdf,.doc,.docx,.txt,.png,.jpg,.jpeg,.tiff,.xlsx,.xls,.pptx"
             onChange={handleFileChange}
           />
         </div>

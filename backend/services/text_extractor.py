@@ -23,7 +23,7 @@ def extract_pages(filename: str, data: bytes) -> list[dict]:
         except Exception:
             return []
 
-    elif ext == "docx":
+    elif ext in ("docx", "doc"):
         try:
             import docx
             doc = docx.Document(io.BytesIO(data))
@@ -32,8 +32,42 @@ def extract_pages(filename: str, data: bytes) -> list[dict]:
         except Exception:
             return []
 
+    elif ext in ("xlsx", "xls"):
+        try:
+            import openpyxl
+            wb = openpyxl.load_workbook(io.BytesIO(data), read_only=True, data_only=True)
+            parts = []
+            for sheet in wb.worksheets:
+                for row in sheet.iter_rows(values_only=True):
+                    line = "\t".join("" if v is None else str(v) for v in row)
+                    if line.strip():
+                        parts.append(line)
+            text = "\n".join(parts)
+            return [{"page": 1, "text": text}] if text.strip() else []
+        except Exception:
+            return []
+
+    elif ext == "pptx":
+        try:
+            from pptx import Presentation
+            prs = Presentation(io.BytesIO(data))
+            pages = []
+            for i, slide in enumerate(prs.slides, start=1):
+                texts = []
+                for shape in slide.shapes:
+                    if shape.has_text_frame:
+                        for para in shape.text_frame.paragraphs:
+                            line = "".join(run.text for run in para.runs)
+                            if line.strip():
+                                texts.append(line)
+                if texts:
+                    pages.append({"page": i, "text": "\n".join(texts)})
+            return pages
+        except Exception:
+            return []
+
     else:
-        # Plain text (covers _ocr.txt and any other text files)
+        # Plain text (covers .txt, _ocr.txt, and any other text files)
         return [{"page": 1, "text": data.decode("utf-8", errors="replace")}]
 
 
