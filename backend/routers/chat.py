@@ -264,6 +264,8 @@ def delete_session(
         raise HTTPException(status_code=404, detail="Session not found")
 
     db.query(ChatMessage).filter(ChatMessage.session_id == session.id).delete()
+    # Detach any documents linked to this session so the FK constraint doesn't block deletion
+    db.query(Document).filter(Document.session_id == session.id).update({"session_id": None})
     db.delete(session)
     db.commit()
     return {"detail": "deleted"}
