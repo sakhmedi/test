@@ -41,6 +41,7 @@ class Document(Base):
 
     id = Column(UUID(as_uuid=False), primary_key=True, default=_uuid)
     company_id = Column(UUID(as_uuid=False), ForeignKey("companies.id"), nullable=False)
+    session_id = Column(UUID(as_uuid=False), ForeignKey("chat_sessions.id"), nullable=True)
     filename = Column(String(512), nullable=False)
     minio_key = Column(String(1024), nullable=False)
     status = Column(String(50), default="pending")  # pending | processing | indexed | error

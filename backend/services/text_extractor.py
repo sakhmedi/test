@@ -10,7 +10,12 @@ def extract_pages(filename: str, data: bytes) -> list[dict]:
     """Return list of {"page": int, "text": str} from file bytes."""
     ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
 
-    if ext == "pdf":
+    if ext in ("jpg", "jpeg", "png", "tiff"):
+        # Raw image bytes can't be meaningfully decoded as text.
+        # Callers should use VisionClient first to convert to a .txt file.
+        return []
+
+    elif ext == "pdf":
         try:
             from pypdf import PdfReader
             reader = PdfReader(io.BytesIO(data))

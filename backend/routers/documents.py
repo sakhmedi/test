@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 
 from auth_utils import get_current_user
 from database import get_db
-from models import Company, Document
+from models import Company, Document, ChatSession
 from services.minio_client import MinIOClient
 from services.ocr_client import VisionClient
 from services.embedder_client import EmbedderClient
@@ -50,10 +50,27 @@ def _is_image(content_type: str, filename: str) -> bool:
 @router.post("/upload", status_code=status.HTTP_201_CREATED)
 async def upload_document(
     file: UploadFile = File(...),
+    session_id: str | None = Form(None),
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
     company_id = current_user["company_id"]
+
+    # Resolve or create the chat session for scoping
+    resolved_session_id: str | None = None
+    if session_id == "new":
+        new_session = ChatSession(company_id=company_id, title="New chat")
+        db.add(new_session)
+        db.commit()
+        db.refresh(new_session)
+        resolved_session_id = str(new_session.id)
+    elif session_id:
+        existing = (
+            db.query(ChatSession)
+            .filter(ChatSession.id == session_id, ChatSession.company_id == company_id)
+            .first()
+        )
+        resolved_session_id = str(existing.id) if existing else None
 
     # Validate file type
     ext = _ext(file.filename or "")
@@ -78,7 +95,10 @@ async def upload_document(
             ext = ".txt"
             content_type = "text/plain"
         except Exception as exc:
-            logger.warning("Vision extraction failed, uploading raw file: %s", exc)
+            # Vision failed — store the raw image but do NOT attempt text extraction
+            # (decoding binary image bytes as UTF-8 produces megabytes of garbage,
+            # which would flood the embedder and time out the request)
+            logger.warning("Vision extraction failed, storing raw image without indexing: %s", exc)
             content_type = file.content_type or "application/octet-stream"
     else:
         content_type = file.content_type or "application/octet-stream"
@@ -96,6 +116,7 @@ async def upload_document(
 
     doc = Document(
         company_id=company_id,
+        session_id=resolved_session_id,
         filename=original_filename,
         minio_key=object_name,
         status=doc_status,
@@ -125,7 +146,7 @@ async def upload_document(
     doc.status = doc_status
     db.commit()
 
-    return {"id": doc.id, "filename": doc.filename, "status": doc.status}
+    return {"id": doc.id, "filename": doc.filename, "status": doc.status, "session_id": resolved_session_id}
 
 
 @router.get("/")

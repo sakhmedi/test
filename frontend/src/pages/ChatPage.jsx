@@ -160,12 +160,18 @@ export default function ChatPage() {
     try {
       const form = new FormData();
       form.append('file', file);
-      await api.post('/documents/upload', form, {
+      // Pass current session or request a new one; response gives us the session_id to use
+      form.append('session_id', currentSessionId || 'new');
+      const uploadRes = await api.post('/documents/upload', form, {
         headers: { 'Content-Type': 'multipart/form-data' },
         onUploadProgress: (ev) => {
           if (ev.total) setUploadProgress(Math.round((ev.loaded / ev.total) * 100));
         },
       });
+      // Anchor this chat to the session the document was indexed into
+      if (uploadRes.data?.session_id && !currentSessionId) {
+        setCurrentSessionId(uploadRes.data.session_id);
+      }
       // Replace uploading message with success
       setMessages((prev) => {
         const updated = [...prev];
@@ -433,7 +439,7 @@ export default function ChatPage() {
                 ref={fileInputRef}
                 type="file"
                 className="hidden"
-                accept=".pdf,.doc,.docx,.txt,.csv,.xlsx,.xls,.png,.jpg,.jpeg"
+                accept=".pdf,.doc,.docx,.txt,.png,.jpg,.jpeg,.tiff,.xlsx,.xls,.pptx"
                 onChange={handleFileChange}
               />
 

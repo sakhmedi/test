@@ -31,6 +31,14 @@ async def lifespan(app: FastAPI):
     logger.info("Creating database tables…")
     Base.metadata.create_all(bind=engine)
 
+    # Migrate existing tables: add session_id to documents if missing
+    with engine.connect() as conn:
+        conn.execute(text(
+            "ALTER TABLE documents "
+            "ADD COLUMN IF NOT EXISTS session_id UUID REFERENCES chat_sessions(id)"
+        ))
+        conn.commit()
+
     logger.info("Ensuring MinIO bucket exists…")
     minio_client = Minio(
         MINIO_ENDPOINT,

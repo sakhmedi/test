@@ -85,14 +85,22 @@ class MilvusStore:
         company_id: str,
         query_vec: list[float],
         top_k: int = 5,
+        doc_ids: list[str] | None = None,
     ) -> list[dict]:
         if self._embeddings is None or not self._metadata:
             return []
 
-        # Indices belonging to this company
-        indices = [
-            i for i, m in enumerate(self._metadata) if m["company_id"] == company_id
-        ]
+        # Indices belonging to this company, optionally scoped to specific docs
+        if doc_ids is not None:
+            doc_id_set = set(doc_ids)
+            indices = [
+                i for i, m in enumerate(self._metadata)
+                if m["company_id"] == company_id and m["doc_id"] in doc_id_set
+            ]
+        else:
+            indices = [
+                i for i, m in enumerate(self._metadata) if m["company_id"] == company_id
+            ]
         if not indices:
             return []
 

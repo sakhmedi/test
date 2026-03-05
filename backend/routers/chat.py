@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 from auth_utils import get_current_user
 from database import get_db
 from llm import get_client
-from models import ChatMessage, ChatSession
+from models import ChatMessage, ChatSession, Document
 from services.embedder_client import EmbedderClient
 from services.milvus_store import MilvusStore
 from services.reranker_client import RerankerClient
@@ -68,7 +68,21 @@ async def chat(
         embedder = EmbedderClient()
         query_vec = await embedder.embed_one(body.question)
         store = MilvusStore()
-        chunks = store.search(company_id, query_vec, top_k=5)
+
+        # Scope search to documents uploaded in this session (if session exists)
+        session_doc_ids: list[str] | None = None
+        if body.session_id:
+            session_doc_ids = [
+                str(d.id)
+                for d in db.query(Document.id)
+                .filter(Document.session_id == body.session_id)
+                .all()
+            ]
+            # If the session has scoped docs, filter; if empty list, no docs yet
+            if not session_doc_ids:
+                session_doc_ids = None  # fall back to company-wide for sessions with no docs
+
+        chunks = store.search(company_id, query_vec, top_k=5, doc_ids=session_doc_ids)
     except Exception as exc:
         logger.warning("Milvus search failed: %s", exc)
     if retrieval_span:
