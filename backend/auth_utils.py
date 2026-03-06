@@ -19,7 +19,7 @@ if JWT_SECRET == _JWT_SECRET_DEFAULT:
         "Set a strong secret in your .env before running in production."
     )
 ALGORITHM = "HS256"
-TOKEN_EXPIRE_HOURS = 24
+TOKEN_EXPIRE_HOURS = 168
 
 _pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 _bearer = HTTPBearer()
