@@ -101,7 +101,9 @@ export default function ChatPage() {
   async function fetchSessions() {
     try {
       const res = await api.get('/chat/sessions');
-      setSessions(res.data || []);
+      const trashed = JSON.parse(localStorage.getItem('trashed_sessions') || '[]');
+      const trashedIds = new Set(trashed.map((s) => s.id));
+      setSessions((res.data || []).filter((s) => !trashedIds.has(s.id)));
     } catch {
       // silently ignore
     }
