@@ -13,7 +13,7 @@ export default function Header() {
   return (
     <header className="bg-slate-900 border-b border-slate-700 px-6 py-3 flex items-center justify-between">
       <span className="text-lg font-bold bg-gradient-to-r from-indigo-400 to-sky-400 bg-clip-text text-transparent">
-        DocuFlow AI
+        Shart AI
       </span>
       <nav className="flex items-center gap-6 text-sm">
         <Link

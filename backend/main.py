@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 MINIO_ENDPOINT = os.getenv("MINIO_ENDPOINT", "minio:9000")
 MINIO_USER = os.getenv("MINIO_USER", "admin")
 MINIO_PASSWORD = os.getenv("MINIO_PASSWORD", "admin")
-MINIO_BUCKET = os.getenv("MINIO_BUCKET", "docuflow-docs")  # FIXED: renamed from test-docs
+MINIO_BUCKET = os.getenv("MINIO_BUCKET", "shart-docs")  # FIXED: renamed from test-docs
 REDIS_URL = os.getenv("REDIS_URL", "redis://redis:6379/0")
 ALLOWED_ORIGINS = os.getenv("ALLOWED_ORIGINS", "http://localhost:3000").split(",")
 
@@ -60,7 +60,7 @@ async def lifespan(app: FastAPI):
     logger.info("Shutting down…")
 
 
-app = FastAPI(title="DocuFlow AI", version="0.1.0", lifespan=lifespan)
+app = FastAPI(title="Shart AI", version="0.1.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,

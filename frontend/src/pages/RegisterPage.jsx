@@ -41,7 +41,7 @@ export default function RegisterPage() {
           <div className="w-9 h-9 bg-[#1a56db] rounded-lg flex items-center justify-center">
             <span className="text-white font-bold text-lg">D</span>
           </div>
-          <span className="text-gray-900 dark:text-white font-semibold text-xl">DocuFlow AI</span>
+          <span className="text-gray-900 dark:text-white font-semibold text-xl">Shart AI</span>
         </div>
 
         <h1 className="text-2xl font-semibold text-gray-900 dark:text-white mb-1 text-center">{t('createWorkspace')}</h1>

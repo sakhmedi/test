@@ -1,4 +1,4 @@
-# DocuFlow AI
+# Shart AI
 
 > B2B Document AI assistant — RAG-powered chatbot for your company's knowledge base.
 
@@ -88,7 +88,7 @@ curl -X POST http://localhost:8000/api/speech/transcribe \
 ```
 ┌─────────────┐     ┌──────────────┐     ┌──────────────┐
 │  Frontend   │────▶│   Backend    │────▶│  PostgreSQL  │
-│  (React/    │     │  (FastAPI)   │     │  (docuflow + │
+│  (React/    │     │  (FastAPI)   │     │  (shart +    │
 │   nginx)    │     └──────┬───────┘     │   langfuse)  │
 └─────────────┘            │             └──────────────┘
                            │
@@ -113,7 +113,7 @@ curl -X POST http://localhost:8000/api/speech/transcribe \
 ## Project Structure
 
 ```
-docuflow/
+shart/
 ├── docker-compose.yml          # Full service stack
 ├── .env.example                # Environment variable template
 ├── postgres-init/

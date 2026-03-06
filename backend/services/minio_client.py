@@ -11,7 +11,7 @@ class MinIOClient:
         endpoint = os.getenv("MINIO_ENDPOINT", "minio:9000")
         access_key = os.getenv("MINIO_USER", "admin")
         secret_key = os.getenv("MINIO_PASSWORD", "admin")
-        self.bucket = os.getenv("MINIO_BUCKET", "docuflow-docs")  # FIXED: renamed from test-docs
+        self.bucket = os.getenv("MINIO_BUCKET", "shart-docs")  # FIXED: renamed from test-docs
         secure = os.getenv("MINIO_SECURE", "false").lower() == "true"
         self._client = Minio(
             endpoint,

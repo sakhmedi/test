@@ -302,7 +302,7 @@ export default function ChatPage() {
       await api.delete(`/documents/${docId}`);
       setSessionDocs((prev) => prev.filter((d) => d.id !== docId));
     } catch {
-      showToast(t('failedDelete'));
+      showToast(t('failedDeleteDoc'));
     }
   }
 
@@ -332,7 +332,7 @@ export default function ChatPage() {
           <div className="w-8 h-8 bg-[#1a56db] rounded-lg flex items-center justify-center flex-shrink-0">
             <span className="text-white font-bold">D</span>
           </div>
-          <span className="text-gray-900 dark:text-white font-semibold text-base">DocuFlow AI</span>
+          <span className="text-gray-900 dark:text-white font-semibold text-base">Shart AI</span>
         </div>
 
         {/* New Chat button */}

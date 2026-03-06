@@ -1,5 +1,5 @@
 """
-End-to-end smoke test for Day 2 — DocuFlow AI.
+End-to-end smoke test for Day 2 — Shart AI.
 
 Run from inside Docker or with a local Python env that has httpx installed:
     python test_day2.py

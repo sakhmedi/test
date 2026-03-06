@@ -1,7 +1,7 @@
 version: '3.8'
 
 networks:
-  docuflow_net:
+  shart_net:
     driver: bridge
 
 volumes:
@@ -16,7 +16,7 @@ volumes:
 services:
 
   # ------------------------------------------------------------------ #
-  # PostgreSQL — shared DB for docuflow, langfuse, n8n                  #
+  # PostgreSQL — shared DB for shart, langfuse, n8n                     #
   # ------------------------------------------------------------------ #
   postgres:
     image: postgres:15
@@ -35,7 +35,7 @@ services:
       timeout: 5s
       retries: 5
     networks:
-      - docuflow_net
+      - shart_net
 
   # ------------------------------------------------------------------ #
   # Redis                                                                #
@@ -50,7 +50,7 @@ services:
       timeout: 5s
       retries: 5
     networks:
-      - docuflow_net
+      - shart_net
 
   # ------------------------------------------------------------------ #
   # MinIO — S3-compatible object storage                                 #
@@ -72,7 +72,7 @@ services:
       timeout: 10s
       retries: 5
     networks:
-      - docuflow_net
+      - shart_net
 
   # ------------------------------------------------------------------ #
   # etcd — cluster metadata store required by Milvus                    #
@@ -97,7 +97,7 @@ services:
       timeout: 5s
       retries: 5
     networks:
-      - docuflow_net
+      - shart_net
 
   # ------------------------------------------------------------------ #
   # Milvus — vector database (standalone mode)                          #
@@ -123,7 +123,7 @@ services:
       timeout: 10s
       retries: 5
     networks:
-      - docuflow_net
+      - shart_net
 
   # ------------------------------------------------------------------ #
   # Elasticsearch — required by RAGFlow for full-text search            #
@@ -132,7 +132,7 @@ services:
     image: elasticsearch:8.11.0
     hostname: es01
     networks:
-      docuflow_net:
+      shart_net:
         aliases:
           - es01
     environment:
@@ -170,7 +170,7 @@ services:
       timeout: 10s
       retries: 5
     networks:
-      - docuflow_net
+      - shart_net
 
   # ------------------------------------------------------------------ #
   # Backend — FastAPI application                                        #
@@ -198,7 +198,7 @@ services:
       timeout: 5s
       retries: 5
     networks:
-      - docuflow_net
+      - shart_net
 
   # ------------------------------------------------------------------ #
   # Frontend — nginx static site                                         #
@@ -216,7 +216,7 @@ services:
       timeout: 5s
       retries: 5
     networks:
-      - docuflow_net
+      - shart_net
 
   # ------------------------------------------------------------------ #
   # Langfuse — LLM observability / tracing                              #
@@ -241,5 +241,5 @@ services:
       timeout: 5s
       retries: 5
     networks:
-      - docuflow_net
+      - shart_net
 
