@@ -75,11 +75,34 @@ curl -X POST http://localhost:8000/api/speech/transcribe \
 | **MinIO Console** | http://localhost:9001 | Object storage admin |
 | **RAGFlow Web** | http://localhost:8080 | Document AI engine UI |
 | **RAGFlow API** | http://localhost:9380 | RAGFlow REST API |
-| **Langfuse** | http://localhost:3001 | LLM tracing & observability |
+| **Langfuse** | https://a1-langfuse1.alem.ai | LLM tracing & observability (school-hosted) |
 | **Milvus** | localhost:19530 | Vector DB (gRPC) |
 | **Elasticsearch** | http://localhost:9200 | Full-text search (used by RAGFlow) |
 | **PostgreSQL** | localhost:5432 | Relational DB |
 | **Redis** | localhost:6379 | Cache / task queue |
+
+---
+
+## School Infrastructure
+
+Langfuse and GitLab are hosted by Alem AI — no local installation needed.
+
+| Resource | URL |
+|---|---|
+| **Langfuse** | https://a1-langfuse1.alem.ai |
+| **GitLab** | https://a1-gitlab3.alem.ai/sakhmedi/shartai |
+
+**Langfuse setup (one-time):**
+1. Log in at https://a1-langfuse1.alem.ai
+2. Create a project → go to **Settings → API Keys**
+3. Copy the **Secret Key** and **Public Key**
+4. Paste them into your `.env` as `LANGFUSE_SECRET_KEY` and `LANGFUSE_PUBLIC_KEY`
+
+**Push to school GitLab:**
+```bash
+bash migrate_to_gitlab.sh   # adds 'school' remote
+git push school main
+```
 
 ---
 
@@ -89,7 +112,7 @@ curl -X POST http://localhost:8000/api/speech/transcribe \
 ┌─────────────┐     ┌──────────────┐     ┌──────────────┐
 │  Frontend   │────▶│   Backend    │────▶│  PostgreSQL  │
 │  (React/    │     │  (FastAPI)   │     │  (shart +    │
-│   nginx)    │     └──────┬───────┘     │   langfuse)  │
+│   nginx)    │     └──────┬───────┘     │    n8n)      │
 └─────────────┘            │             └──────────────┘
                            │
               ┌────────────┼─────────────┐
@@ -101,11 +124,11 @@ curl -X POST http://localhost:8000/api/speech/transcribe \
                            │
               ┌────────────┼────────────┐
               │            │            │
-    ┌─────────▼──┐  ┌──────▼───┐  ┌────▼──────────────┐
-    │   Redis    │  │ Langfuse │  │  External APIs     │
-    │  (cache)   │  │ (traces) │  │  OCR / STT /       │
-    └────────────┘  └──────────┘  │  Reranker / Embed  │
-                                  └────────────────────┘
+    ┌─────────▼──┐  ┌──────────────────────────────────┐
+    │   Redis    │  │  External APIs                   │
+    │  (cache)   │  │  OCR / STT / Reranker / Embed    │
+    └────────────┘  │  Langfuse (https://a1-langfuse1) │
+                    └──────────────────────────────────┘
 ```
 
 ---

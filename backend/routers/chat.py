@@ -18,15 +18,18 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/chat", tags=["chat"])
 
 # Langfuse is optional — gracefully skip if not configured
-try:
-    from langfuse import Langfuse
-    _langfuse = Langfuse(
-        secret_key=os.getenv("LANGFUSE_SECRET_KEY", ""),
-        public_key=os.getenv("LANGFUSE_PUBLIC_KEY", ""),
-        host=os.getenv("LANGFUSE_HOST", "http://langfuse:3000"),
-    )
-except Exception:
-    _langfuse = None
+_lf_secret = os.getenv("LANGFUSE_SECRET_KEY", "")
+_lf_public = os.getenv("LANGFUSE_PUBLIC_KEY", "")
+_lf_host   = os.getenv("LANGFUSE_HOST", "https://a1-langfuse1.alem.ai")
+
+if _lf_secret and _lf_public:
+    try:
+        from langfuse import Langfuse
+        _langfuse = Langfuse(secret_key=_lf_secret, public_key=_lf_public, host=_lf_host)
+    except Exception:
+        _langfuse = None
+else:
+    _langfuse = None  # Keys not set — Langfuse disabled
 
 # Silence Langfuse SDK's internal retry/error logs — errors are non-critical
 if _langfuse:
