@@ -10,7 +10,6 @@ volumes:
   milvus_data:
   etcd_data:
   elasticsearch_data:
-  ragflow_data:
   chroma_data:
 
 services:
@@ -42,6 +41,7 @@ services:
   # ------------------------------------------------------------------ #
   redis:
     image: redis:7-alpine
+    command: redis-server --requirepass ragflow123
     ports:
       - "6379:6379"
     healthcheck:
@@ -126,7 +126,7 @@ services:
       - shart_net
 
   # ------------------------------------------------------------------ #
-  # Elasticsearch — required by RAGFlow for full-text search            #
+  # Elasticsearch                                                        #
   # ------------------------------------------------------------------ #
   elasticsearch:
     image: elasticsearch:8.11.0
@@ -148,29 +148,6 @@ services:
       interval: 30s
       timeout: 10s
       retries: 5
-
-  # ------------------------------------------------------------------ #
-  # RAGFlow — document AI / RAG engine                                  #
-  # ------------------------------------------------------------------ #
-  ragflow:
-    image: infiniflow/ragflow:latest
-    ports:
-      - "9380:9380"   # REST API
-      - "8080:80"     # Web UI
-    volumes:
-      - ragflow_data:/ragflow
-    depends_on:
-      elasticsearch:
-        condition: service_healthy
-      milvus:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD-SHELL", "curl -s --max-time 5 http://localhost:9380 -o /dev/null"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-    networks:
-      - shart_net
 
   # ------------------------------------------------------------------ #
   # Backend — FastAPI application                                        #
