@@ -38,7 +38,8 @@ export default function RegisterPage() {
       <div className="w-full max-w-sm">
         {/* Logo */}
         <div className="flex items-center justify-center gap-2 mb-8">
-          <img src="/shart_icon.png" alt="Shart AI" className="w-9 h-9 object-contain" />
+          <img src="/shart_icon.png" alt="Shart AI" className="w-9 h-9 object-contain dark:hidden" />
+          <img src="/shart_icon_white.png" alt="Shart AI" className="w-9 h-9 object-contain hidden dark:block" />
           <span className="text-gray-900 dark:text-white font-semibold text-xl">Shart AI</span>
         </div>
 
