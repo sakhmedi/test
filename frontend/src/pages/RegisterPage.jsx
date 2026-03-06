@@ -38,9 +38,7 @@ export default function RegisterPage() {
       <div className="w-full max-w-sm">
         {/* Logo */}
         <div className="flex items-center justify-center gap-2 mb-8">
-          <div className="w-9 h-9 bg-[#1a56db] rounded-lg flex items-center justify-center">
-            <span className="text-white font-bold text-lg">D</span>
-          </div>
+          <img src="/shart_icon.png" alt="Shart AI" className="w-9 h-9 object-contain" />
           <span className="text-gray-900 dark:text-white font-semibold text-xl">Shart AI</span>
         </div>
 

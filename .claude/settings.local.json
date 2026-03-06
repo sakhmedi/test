@@ -3,7 +3,8 @@
     "allow": [
       "Bash(docker exec:*)",
       "Bash(docker-compose:*)",
-      "Bash(ls:*)"
+      "Bash(ls:*)",
+      "Bash(mkdir:*)"
     ]
   }
 }

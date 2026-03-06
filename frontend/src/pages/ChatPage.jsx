@@ -329,9 +329,7 @@ export default function ChatPage() {
       >
         {/* Logo */}
         <div className="flex items-center gap-2 px-4 py-4 border-b border-gray-200 dark:border-gray-700">
-          <div className="w-8 h-8 bg-[#1a56db] rounded-lg flex items-center justify-center flex-shrink-0">
-            <span className="text-white font-bold">D</span>
-          </div>
+          <img src="/shart_icon.png" alt="Shart AI" className="w-8 h-8 object-contain flex-shrink-0" />
           <span className="text-gray-900 dark:text-white font-semibold text-base">Shart AI</span>
         </div>
 
@@ -598,9 +596,7 @@ export default function ChatPage() {
           <div className="flex-1 flex flex-col items-center justify-center px-6 pb-16">
             <div className="w-full max-w-2xl">
               <div className="text-center mb-8">
-                <div className="w-12 h-12 bg-[#1a56db] rounded-2xl flex items-center justify-center mx-auto mb-5">
-                  <span className="text-white font-bold text-xl">S</span>
-                </div>
+                <img src="/shart_icon.png" alt="Shart AI" className="w-12 h-12 object-contain mx-auto mb-5" />
                 <h1 className="text-3xl font-semibold text-gray-800 dark:text-gray-100 mb-2">
                   {t('askQuestion')}
                 </h1>
