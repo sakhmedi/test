@@ -135,7 +135,7 @@ export default function ChatPage() {
     setViewingSessionId(null);
     setInput('');
     if (textareaRef.current) {
-      textareaRef.current.style.height = '24px';
+      textareaRef.current.style.height = '72px';
       textareaRef.current.style.overflowY = 'hidden';
     }
   }
@@ -146,7 +146,7 @@ export default function ChatPage() {
 
     setInput('');
     if (textareaRef.current) {
-      textareaRef.current.style.height = '24px';
+      textareaRef.current.style.height = '44px';
       textareaRef.current.style.overflowY = 'hidden';
     }
     setViewingSessionId(null);
@@ -566,9 +566,18 @@ export default function ChatPage() {
       </aside>
 
       {/* Main chat area */}
-      <div className="flex-1 flex flex-col min-w-0">
+      <div className="flex-1 flex flex-col min-w-0 bg-white dark:bg-gray-900">
+        {/* Hidden file input — shared between both states */}
+        <input
+          ref={fileInputRef}
+          type="file"
+          className="hidden"
+          accept=".pdf,.doc,.docx,.txt,.png,.jpg,.jpeg,.tiff,.xlsx,.xls,.pptx"
+          onChange={handleFileChange}
+        />
+
         {/* Top bar */}
-        <div className="flex items-center gap-3 px-4 py-3 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
+        <div className="flex items-center gap-3 px-4 py-3 border-b border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-900">
           <button
             onClick={() => setSidebarOpen((o) => !o)}
             className="p-1.5 rounded-lg text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
@@ -577,152 +586,225 @@ export default function ChatPage() {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
             </svg>
           </button>
-          <span className="text-gray-700 dark:text-gray-300 text-sm font-medium truncate">
-            {activeTitle || t('newChat')}
-          </span>
+          {currentSessionId && (
+            <span className="text-gray-700 dark:text-gray-300 text-sm font-medium truncate">
+              {activeTitle || t('newChat')}
+            </span>
+          )}
         </div>
 
-        {/* Messages */}
-        <div className="flex-1 overflow-y-auto px-4 py-6 bg-white dark:bg-gray-900">
-          <div className="max-w-2xl mx-auto space-y-1">
-            {messages.length === 0 && !loading && (
-              <div className="text-center mt-24">
-                <div className="text-4xl mb-4">💬</div>
-                <h2 className="text-xl font-semibold text-gray-800 dark:text-gray-100 mb-2">
+        {/* Empty state — centered input */}
+        {messages.length === 0 && !loading && (
+          <div className="flex-1 flex flex-col items-center justify-center px-6 pb-16">
+            <div className="w-full max-w-2xl">
+              <div className="text-center mb-8">
+                <div className="w-12 h-12 bg-[#1a56db] rounded-2xl flex items-center justify-center mx-auto mb-5">
+                  <span className="text-white font-bold text-xl">S</span>
+                </div>
+                <h1 className="text-3xl font-semibold text-gray-800 dark:text-gray-100 mb-2">
                   {t('askQuestion')}
-                </h2>
-                <p className="text-gray-500 dark:text-gray-400 text-sm">
+                </h1>
+                <p className="text-gray-500 dark:text-gray-400 text-base">
                   {t('uploadHint')}
                 </p>
               </div>
-            )}
 
-            {messages.map((msg, i) => {
-              if (msg.role === 'system') {
-                return (
-                  <div key={i} className="flex justify-center my-2">
-                    <span className="text-xs text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-800 rounded-full px-3 py-1">
-                      {msg.content}
-                    </span>
+              {uploading && (
+                <div className="mb-4">
+                  <div className="flex justify-between text-sm text-gray-500 dark:text-gray-400 mb-1.5">
+                    <span>{t('uploading')}</span>
+                    <span>{uploadProgress}%</span>
                   </div>
-                );
-              }
-              return (
-                <div key={i}>
-                  <MessageBubble role={msg.role} content={msg.content} />
-                  {msg.role === 'assistant' && msg.sources?.length > 0 && (
-                    <div className="ml-9 mb-3">
-                      <p className="text-xs text-gray-400 mb-1.5">{t('sources')}</p>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                        {msg.sources.map((src, j) => (
-                          <SourceCard
-                            key={j}
-                            filename={src.filename}
-                            excerpt={src.excerpt}
-                            page={src.page}
-                          />
-                        ))}
-                      </div>
-                    </div>
-                  )}
+                  <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-1.5">
+                    <div
+                      className="bg-[#1a56db] h-1.5 rounded-full transition-all"
+                      style={{ width: `${uploadProgress}%` }}
+                    />
+                  </div>
                 </div>
-              );
-            })}
+              )}
 
-            {loading && (
-              <div className="flex justify-start mb-3">
-                <div className="w-7 h-7 bg-[#1a56db] rounded-full flex items-center justify-center mr-2 flex-shrink-0 mt-0.5">
-                  <span className="text-white text-xs font-bold">D</span>
-                </div>
-                <div className="flex items-center gap-1 pt-1">
-                  <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce [animation-delay:0ms]" />
-                  <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce [animation-delay:150ms]" />
-                  <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce [animation-delay:300ms]" />
+              <div
+                className={`rounded-2xl border transition-all ${
+                  inputFocused
+                    ? 'border-[#1a56db] shadow-[0_0_0_3px_rgba(26,86,219,0.12)]'
+                    : 'border-gray-200 dark:border-gray-700 shadow-lg dark:shadow-none'
+                } bg-white dark:bg-gray-800 p-4`}
+              >
+                <textarea
+                  ref={textareaRef}
+                  rows={1}
+                  value={input}
+                  onChange={(e) => {
+                    setInput(e.target.value);
+                    autoResize(e);
+                  }}
+                  onKeyDown={handleKeyDown}
+                  onFocus={() => setInputFocused(true)}
+                  onBlur={() => setInputFocused(false)}
+                  placeholder={t('placeholder')}
+                  className="w-full resize-none text-base text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none bg-transparent"
+                  style={{ height: '72px', minHeight: '72px', overflowY: 'hidden' }}
+                />
+                <div className="flex items-center justify-between mt-3 pt-3 border-t border-gray-100 dark:border-gray-700">
+                  <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      disabled={uploading}
+                      className="p-2 rounded-lg text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 disabled:opacity-40 transition-colors hover:bg-gray-100 dark:hover:bg-gray-700"
+                      title={t('uploading')}
+                    >
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
+                      </svg>
+                    </button>
+                    <VoiceButton
+                      onTranscribed={(text) => setInput((prev) => prev + text)}
+                      onError={showToast}
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={sendMessage}
+                    disabled={loading || !input.trim()}
+                    className="w-9 h-9 rounded-full bg-[#1a56db] text-white disabled:opacity-40 hover:bg-[#1648c0] transition-all flex items-center justify-center"
+                    title={t('send')}
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 10l7-7m0 0l7 7m-7-7v18" />
+                    </svg>
+                  </button>
                 </div>
               </div>
-            )}
-
-            <div ref={bottomRef} />
-          </div>
-        </div>
-
-        {/* Input bar */}
-        <div className="border-t border-gray-200 dark:border-gray-700 px-4 py-4 bg-white dark:bg-gray-900">
-          <div className="max-w-2xl mx-auto">
-            {uploading && (
-              <div className="mb-2">
-                <div className="flex justify-between text-xs text-gray-500 dark:text-gray-400 mb-1">
-                  <span>{t('uploading')}</span>
-                  <span>{uploadProgress}%</span>
-                </div>
-                <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-1">
-                  <div
-                    className="bg-[#1a56db] h-1 rounded-full transition-all"
-                    style={{ width: `${uploadProgress}%` }}
-                  />
-                </div>
-              </div>
-            )}
-            <div
-              className={`flex items-end gap-2 border rounded-xl px-3 py-2 transition-colors ${
-                inputFocused
-                  ? 'border-[#1a56db] ring-1 ring-[#1a56db]'
-                  : 'border-gray-300 dark:border-gray-600'
-              } bg-white dark:bg-gray-800`}
-            >
-              {/* Paperclip upload button */}
-              <button
-                type="button"
-                onClick={() => fileInputRef.current?.click()}
-                disabled={uploading}
-                className="p-1.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 disabled:opacity-40 transition-colors flex-shrink-0"
-                title={t('uploading')}
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
-                </svg>
-              </button>
-              <input
-                ref={fileInputRef}
-                type="file"
-                className="hidden"
-                accept=".pdf,.doc,.docx,.txt,.png,.jpg,.jpeg,.tiff,.xlsx,.xls,.pptx"
-                onChange={handleFileChange}
-              />
-
-              <VoiceButton
-                onTranscribed={(text) => setInput((prev) => prev + text)}
-                onError={showToast}
-              />
-              <textarea
-                ref={textareaRef}
-                rows={1}
-                value={input}
-                onChange={(e) => {
-                  setInput(e.target.value);
-                  autoResize(e);
-                }}
-                onKeyDown={handleKeyDown}
-                onFocus={() => setInputFocused(true)}
-                onBlur={() => setInputFocused(false)}
-                placeholder={t('placeholder')}
-                className="flex-1 resize-none text-sm text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none bg-transparent py-1 max-h-[200px]"
-                style={{ height: '24px', overflowY: 'hidden' }}
-              />
-              <button
-                type="button"
-                onClick={sendMessage}
-                disabled={loading || !input.trim()}
-                className="p-1.5 rounded-lg bg-[#1a56db] text-white disabled:opacity-40 hover:bg-[#1648c0] transition-colors flex-shrink-0"
-                title={t('send')}
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
-                </svg>
-              </button>
             </div>
           </div>
-        </div>
+        )}
+
+        {/* Conversation state */}
+        {(messages.length > 0 || loading) && (
+          <>
+            {/* Messages */}
+            <div className="flex-1 overflow-y-auto bg-white dark:bg-gray-900">
+              <div className="max-w-3xl mx-auto px-6 py-8">
+                {messages.map((msg, i) => {
+                  if (msg.role === 'system') {
+                    return (
+                      <div key={i} className="flex justify-center my-4">
+                        <span className="text-sm text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-800 rounded-full px-4 py-1.5">
+                          {msg.content}
+                        </span>
+                      </div>
+                    );
+                  }
+                  return (
+                    <div key={i}>
+                      <MessageBubble role={msg.role} content={msg.content} />
+                      {msg.role === 'assistant' && msg.sources?.length > 0 && (
+                        <div className="mb-6">
+                          <p className="text-sm text-gray-400 mb-2">{t('sources')}</p>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                            {msg.sources.map((src, j) => (
+                              <SourceCard
+                                key={j}
+                                filename={src.filename}
+                                excerpt={src.excerpt}
+                                page={src.page}
+                              />
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+
+                {loading && (
+                  <div className="flex items-center gap-1.5 py-2 mb-4">
+                    <span className="w-2 h-2 bg-gray-300 dark:bg-gray-500 rounded-full animate-bounce [animation-delay:0ms]" />
+                    <span className="w-2 h-2 bg-gray-300 dark:bg-gray-500 rounded-full animate-bounce [animation-delay:150ms]" />
+                    <span className="w-2 h-2 bg-gray-300 dark:bg-gray-500 rounded-full animate-bounce [animation-delay:300ms]" />
+                  </div>
+                )}
+
+                <div ref={bottomRef} />
+              </div>
+            </div>
+
+            {/* Bottom input bar */}
+            <div className="bg-white dark:bg-gray-900 px-6 pb-6 pt-3 border-t border-gray-100 dark:border-gray-800">
+              <div className="max-w-3xl mx-auto">
+                {uploading && (
+                  <div className="mb-3">
+                    <div className="flex justify-between text-sm text-gray-500 dark:text-gray-400 mb-1.5">
+                      <span>{t('uploading')}</span>
+                      <span>{uploadProgress}%</span>
+                    </div>
+                    <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-1.5">
+                      <div
+                        className="bg-[#1a56db] h-1.5 rounded-full transition-all"
+                        style={{ width: `${uploadProgress}%` }}
+                      />
+                    </div>
+                  </div>
+                )}
+                <div
+                  className={`rounded-2xl border transition-all ${
+                    inputFocused
+                      ? 'border-[#1a56db] shadow-[0_0_0_3px_rgba(26,86,219,0.12)]'
+                      : 'border-gray-200 dark:border-gray-700 shadow-sm'
+                  } bg-white dark:bg-gray-800 px-4 py-3`}
+                >
+                  <textarea
+                    ref={textareaRef}
+                    rows={1}
+                    value={input}
+                    onChange={(e) => {
+                      setInput(e.target.value);
+                      autoResize(e);
+                    }}
+                    onKeyDown={handleKeyDown}
+                    onFocus={() => setInputFocused(true)}
+                    onBlur={() => setInputFocused(false)}
+                    placeholder={t('placeholder')}
+                    className="w-full resize-none text-base text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none bg-transparent"
+                    style={{ height: '44px', minHeight: '44px', overflowY: 'hidden' }}
+                  />
+                  <div className="flex items-center justify-between mt-2">
+                    <div className="flex items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={() => fileInputRef.current?.click()}
+                        disabled={uploading}
+                        className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 disabled:opacity-40 transition-colors hover:bg-gray-100 dark:hover:bg-gray-700"
+                        title={t('uploading')}
+                      >
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
+                        </svg>
+                      </button>
+                      <VoiceButton
+                        onTranscribed={(text) => setInput((prev) => prev + text)}
+                        onError={showToast}
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      onClick={sendMessage}
+                      disabled={loading || !input.trim()}
+                      className="w-8 h-8 rounded-full bg-[#1a56db] text-white disabled:opacity-40 hover:bg-[#1648c0] transition-all flex items-center justify-center"
+                      title={t('send')}
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 10l7-7m0 0l7 7m-7-7v18" />
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </>
+        )}
       </div>
     </div>
   );

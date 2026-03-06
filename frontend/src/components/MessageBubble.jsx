@@ -1,17 +1,12 @@
 export default function MessageBubble({ role, content }) {
   const isUser = role === 'user';
   return (
-    <div className={`flex ${isUser ? 'justify-end' : 'justify-start'} mb-3`}>
-      {!isUser && (
-        <div className="w-7 h-7 bg-[#1a56db] rounded-full flex items-center justify-center mr-2 flex-shrink-0 mt-0.5">
-          <span className="text-white text-xs font-bold">D</span>
-        </div>
-      )}
+    <div className={`flex ${isUser ? 'justify-end' : 'justify-start'} mb-6`}>
       <div
-        className={`max-w-[75%] text-sm leading-relaxed whitespace-pre-wrap ${
+        className={`text-base leading-relaxed whitespace-pre-wrap break-words ${
           isUser
-            ? 'bg-[#1a56db] text-white rounded-2xl rounded-br-sm px-4 py-3'
-            : 'text-gray-800 dark:text-gray-100'
+            ? 'bg-gray-100 dark:bg-gray-700/80 text-gray-900 dark:text-gray-100 rounded-2xl rounded-br-md px-5 py-3 max-w-[78%]'
+            : 'text-gray-800 dark:text-gray-100 max-w-[85%]'
         }`}
       >
         {content}
