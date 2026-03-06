@@ -93,11 +93,22 @@ async def chat(
 
     # Rerank chunks
     if chunks:
+        reranking_span = None
+        if trace:
+            try:
+                reranking_span = trace.span(name="reranking", input={"query": body.question, "chunk_count": len(chunks)})
+            except Exception:
+                pass
         try:
             reranker = RerankerClient()
             chunks = await reranker.rerank(body.question, chunks)
         except Exception as exc:
             logger.warning("Reranker failed, using original order: %s", exc)
+        if reranking_span:
+            try:
+                reranking_span.end(output={"chunk_count": len(chunks)})
+            except Exception:
+                pass
 
     # Build prompt
     context_text = "\n\n".join(
@@ -122,7 +133,10 @@ async def chat(
             generation_span = trace.generation(
                 name="llm",
                 model=model,
-                input=[{"role": "user", "content": user_message}],
+                input=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_message},
+                ],
             )
         except Exception:
             pass
@@ -153,8 +167,10 @@ async def chat(
             pass
     if trace:
         import asyncio
-        loop = asyncio.get_event_loop()
-        loop.run_in_executor(None, _langfuse.flush)
+        try:
+            asyncio.get_running_loop().run_in_executor(None, _langfuse.flush)
+        except Exception:
+            pass
 
     # Build sources list
     sources = []

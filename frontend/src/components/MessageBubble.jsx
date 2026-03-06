@@ -11,7 +11,7 @@ export default function MessageBubble({ role, content }) {
         className={`max-w-[75%] text-sm leading-relaxed whitespace-pre-wrap ${
           isUser
             ? 'bg-[#1a56db] text-white rounded-2xl rounded-br-sm px-4 py-3'
-            : 'text-gray-800'
+            : 'text-gray-800 dark:text-gray-100'
         }`}
       >
         {content}

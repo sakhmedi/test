@@ -1,3 +1,4 @@
+import os
 import uuid
 import logging
 from typing import List
@@ -17,6 +18,21 @@ from services.milvus_store import MilvusStore
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/documents", tags=["documents"])
+
+# Langfuse is optional — gracefully skip if not configured
+try:
+    from langfuse import Langfuse
+    _langfuse = Langfuse(
+        secret_key=os.getenv("LANGFUSE_SECRET_KEY", ""),
+        public_key=os.getenv("LANGFUSE_PUBLIC_KEY", ""),
+        host=os.getenv("LANGFUSE_HOST", "http://langfuse:3000"),
+    )
+except Exception:
+    _langfuse = None
+
+if _langfuse:
+    import logging as _logging
+    _logging.getLogger("langfuse").setLevel(_logging.CRITICAL)
 
 MAX_UPLOAD_BYTES = 50 * 1024 * 1024  # 50 MB
 
@@ -55,6 +71,19 @@ async def upload_document(
     current_user: dict = Depends(get_current_user),
 ):
     company_id = current_user["company_id"]
+    user_id = current_user["sub"]
+
+    # Start Langfuse trace for the upload pipeline
+    upload_trace = None
+    if _langfuse:
+        try:
+            upload_trace = _langfuse.trace(
+                name="document_upload",
+                user_id=user_id,
+                metadata={"company_id": company_id, "filename": file.filename},
+            )
+        except Exception as exc:
+            logger.warning("Langfuse trace init failed: %s", exc)
 
     # Resolve or create the chat session for scoping
     resolved_session_id: str | None = None
@@ -87,6 +116,12 @@ async def upload_document(
 
     # Vision branch: images are sent to Qwen VLM to extract text
     if _is_image(file.content_type or "", original_filename):
+        ocr_span = None
+        if upload_trace:
+            try:
+                ocr_span = upload_trace.span(name="ocr", input={"filename": original_filename})
+            except Exception:
+                pass
         try:
             vision = VisionClient()
             extracted_text = await vision.extract_text(file_bytes, original_filename)
@@ -94,12 +129,22 @@ async def upload_document(
             original_filename = original_filename.rsplit(".", 1)[0] + "_extracted.txt"
             ext = ".txt"
             content_type = "text/plain"
+            if ocr_span:
+                try:
+                    ocr_span.end(output={"char_count": len(extracted_text)})
+                except Exception:
+                    pass
         except Exception as exc:
             # Vision failed — store the raw image but do NOT attempt text extraction
             # (decoding binary image bytes as UTF-8 produces megabytes of garbage,
             # which would flood the embedder and time out the request)
             logger.warning("Vision extraction failed, storing raw image without indexing: %s", exc)
             content_type = file.content_type or "application/octet-stream"
+            if ocr_span:
+                try:
+                    ocr_span.end(level="ERROR", status_message=str(exc))
+                except Exception:
+                    pass
     else:
         content_type = file.content_type or "application/octet-stream"
 
@@ -128,6 +173,12 @@ async def upload_document(
     db.refresh(doc)
 
     if chunks:
+        embedding_span = None
+        if upload_trace:
+            try:
+                embedding_span = upload_trace.span(name="embedding", input={"chunk_count": len(chunks)})
+            except Exception:
+                pass
         try:
             embedder = EmbedderClient()
             texts = [c["text"] for c in chunks]
@@ -137,14 +188,31 @@ async def upload_document(
             store = MilvusStore()
             store.insert(company_id, doc.id, original_filename, chunks, all_embeddings)
             doc_status = "indexed"
+            if embedding_span:
+                try:
+                    embedding_span.end(output={"status": "indexed"})
+                except Exception:
+                    pass
         except Exception as exc:
             logger.warning("Embedding/indexing failed: %s", exc)
             doc_status = "error"
+            if embedding_span:
+                try:
+                    embedding_span.end(level="ERROR", status_message=str(exc))
+                except Exception:
+                    pass
     else:
         doc_status = "indexed"  # no text to extract (e.g. .doc binary)
 
     doc.status = doc_status
     db.commit()
+
+    if upload_trace:
+        import asyncio
+        try:
+            asyncio.get_running_loop().run_in_executor(None, _langfuse.flush)
+        except Exception:
+            pass
 
     return {"id": doc.id, "filename": doc.filename, "status": doc.status, "session_id": resolved_session_id}
 
@@ -162,6 +230,7 @@ def list_documents(
             "filename": d.filename,
             "status": d.status,
             "created_at": d.created_at.isoformat(),
+            "session_id": d.session_id,
         }
         for d in docs
     ]

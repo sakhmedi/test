@@ -2,6 +2,7 @@ import os
 import httpx
 
 RERANKER_API_URL = os.getenv("RERANKER_API_URL", "")
+RERANKER_API_KEY = os.getenv("RERANKER_API_KEY", "")
 RERANK_THRESHOLD = 0.1  # FIXED: filter out low-confidence chunks
 
 
@@ -16,10 +17,15 @@ class RerankerClient:
 
         documents = [c.get("content", c.get("text", "")) for c in chunks]
 
+        headers = {}
+        if RERANKER_API_KEY:
+            headers["Authorization"] = f"Bearer {RERANKER_API_KEY}"
+
         async with httpx.AsyncClient(timeout=30) as client:
             response = await client.post(
                 RERANKER_API_URL,
                 json={"query": query, "documents": documents},
+                headers=headers,
             )
             response.raise_for_status()
             data = response.json()
