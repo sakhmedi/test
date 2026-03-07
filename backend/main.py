@@ -13,6 +13,7 @@ from sqlalchemy import text
 from database import engine, Base
 from routers import auth, documents, chat, speech
 import llm as llm_module
+from services.milvus_store import _connect as _milvus_connect
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -21,6 +22,7 @@ MINIO_ENDPOINT = os.getenv("MINIO_ENDPOINT", "minio:9000")
 MINIO_USER = os.getenv("MINIO_USER", "admin")
 MINIO_PASSWORD = os.getenv("MINIO_PASSWORD", "admin")
 MINIO_BUCKET = os.getenv("MINIO_BUCKET", "shart-docs")  # FIXED: renamed from test-docs
+MINIO_SECURE = os.getenv("MINIO_SECURE", "false").lower() == "true"
 REDIS_URL = os.getenv("REDIS_URL", "redis://redis:6379/0")
 ALLOWED_ORIGINS = os.getenv("ALLOWED_ORIGINS", "http://localhost:3000").split(",")
 
@@ -44,7 +46,7 @@ async def lifespan(app: FastAPI):
         MINIO_ENDPOINT,
         access_key=MINIO_USER,
         secret_key=MINIO_PASSWORD,
-        secure=False,
+        secure=MINIO_SECURE,
     )
     try:
         if not minio_client.bucket_exists(MINIO_BUCKET):
@@ -102,12 +104,19 @@ def health():
             MINIO_ENDPOINT,
             access_key=MINIO_USER,
             secret_key=MINIO_PASSWORD,
-            secure=False,
+            secure=MINIO_SECURE,
         )
         minio_client.bucket_exists(MINIO_BUCKET)
         services["minio"] = "ok"
     except Exception as exc:
         services["minio"] = f"error: {exc}"
+
+    # Milvus
+    try:
+        _milvus_connect()
+        services["milvus"] = "ok"
+    except Exception as exc:
+        services["milvus"] = f"error: {exc}"
 
     # AlemLLM — just check the key is set, no network call
     try:

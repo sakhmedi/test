@@ -6,11 +6,7 @@ networks:
 
 volumes:
   postgres_data:
-  minio_data:
-  milvus_data:
-  etcd_data:
   elasticsearch_data:
-  chroma_data:
 
 services:
 
@@ -53,79 +49,6 @@ services:
       - shart_net
 
   # ------------------------------------------------------------------ #
-  # MinIO — S3-compatible object storage                                 #
-  # ------------------------------------------------------------------ #
-  minio:
-    image: minio/minio
-    command: server /data --console-address ":9001"
-    environment:
-      MINIO_ROOT_USER: ${MINIO_USER}
-      MINIO_ROOT_PASSWORD: ${MINIO_PASSWORD}
-    ports:
-      - "9000:9000"
-      - "9001:9001"
-    volumes:
-      - minio_data:/data
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
-      interval: 15s
-      timeout: 10s
-      retries: 5
-    networks:
-      - shart_net
-
-  # ------------------------------------------------------------------ #
-  # etcd — cluster metadata store required by Milvus                    #
-  # ------------------------------------------------------------------ #
-  etcd:
-    image: quay.io/coreos/etcd:v3.5.5
-    command: >
-      etcd
-      --name etcd0
-      --data-dir /etcd-data
-      --listen-client-urls http://0.0.0.0:2379
-      --advertise-client-urls http://etcd:2379
-      --listen-peer-urls http://0.0.0.0:2380
-      --initial-advertise-peer-urls http://etcd:2380
-      --initial-cluster etcd0=http://etcd:2380
-    volumes:
-      - etcd_data:/etcd-data
-    # FIXED: added healthcheck
-    healthcheck:
-      test: ["CMD-SHELL", "etcdctl endpoint health"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    networks:
-      - shart_net
-
-  # ------------------------------------------------------------------ #
-  # Milvus — vector database (standalone mode)                          #
-  # ------------------------------------------------------------------ #
-  milvus:
-    image: milvusdb/milvus:v2.3.3
-    command: milvus run standalone
-    environment:
-      ETCD_ENDPOINTS: etcd:2379
-      MINIO_ADDRESS: minio:9000
-      MINIO_ACCESS_KEY_ID: ${MINIO_USER}
-      MINIO_SECRET_ACCESS_KEY: ${MINIO_PASSWORD}
-    ports:
-      - "19530:19530"
-    volumes:
-      - milvus_data:/var/lib/milvus
-    depends_on:
-      - etcd
-      - minio
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9091/healthz"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-    networks:
-      - shart_net
-
-  # ------------------------------------------------------------------ #
   # Elasticsearch                                                        #
   # ------------------------------------------------------------------ #
   elasticsearch:
@@ -161,14 +84,11 @@ services:
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
       REDIS_URL: redis://redis:6379/0
-    volumes:
-      - chroma_data:/data/chroma
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
-    # FIXED: use python urllib instead of curl (not available in python:3.11-slim)
     healthcheck:
       test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/health')\""]
       interval: 15s
@@ -186,7 +106,6 @@ services:
       - "3000:80"
     depends_on:
       - backend
-    # FIXED: added healthcheck
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:80"]
       interval: 15s
@@ -194,5 +113,3 @@ services:
       retries: 5
     networks:
       - shart_net
-
-

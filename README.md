@@ -2,7 +2,7 @@
 
 > B2B Document AI assistant — RAG-powered chatbot for your company's knowledge base.
 
-Upload PDFs, Word docs, and images, then chat with them using retrieval-augmented generation (RAGFlow + Milvus + FastAPI). Full auth, OCR, speech-to-text, and reranking included.
+Upload PDFs, Word docs, and images, then chat with them using retrieval-augmented generation (Milvus + FastAPI). Full auth, OCR, speech-to-text, and reranking included.
 
 ---
 
@@ -68,28 +68,37 @@ curl -X POST http://localhost:8000/api/speech/transcribe \
 
 ## Service URLs
 
+### Local (docker-compose)
+
 | Service | URL | Description |
 |---|---|---|
 | **Frontend** | http://localhost:3000 | React SPA (Vite + Tailwind) |
 | **Backend API** | http://localhost:8000 | FastAPI — docs at `/docs` |
-| **MinIO Console** | http://localhost:9001 | Object storage admin |
-| **RAGFlow Web** | http://localhost:8080 | Document AI engine UI |
-| **RAGFlow API** | http://localhost:9380 | RAGFlow REST API |
-| **Langfuse** | https://a1-langfuse1.alem.ai | LLM tracing & observability (school-hosted) |
-| **Milvus** | localhost:19530 | Vector DB (gRPC) |
-| **Elasticsearch** | http://localhost:9200 | Full-text search (used by RAGFlow) |
+| **Elasticsearch** | http://localhost:9200 | Full-text search (not yet queried) |
 | **PostgreSQL** | localhost:5432 | Relational DB |
 | **Redis** | localhost:6379 | Cache / task queue |
+
+### School-hosted (remote)
+
+| Service | URL | Description |
+|---|---|---|
+| **MinIO S3** | a1-s3-1.alem.ai (TLS) | Object storage for uploaded files |
+| **Milvus** | a1-milvus1.alem.ai:30130 | Vector database (pymilvus) |
+| **RAGFlow** | https://a1-ragflow1.alem.ai | Document AI engine (client ready, not active) |
+| **Langfuse** | https://a1-langfuse1.alem.ai | LLM tracing & observability |
 
 ---
 
 ## School Infrastructure
 
-Langfuse and GitLab are hosted by Alem AI — no local installation needed.
+All infrastructure below is hosted by Alem AI — no local installation needed.
 
 | Resource | URL |
 |---|---|
 | **Langfuse** | https://a1-langfuse1.alem.ai |
+| **RAGFlow** | https://a1-ragflow1.alem.ai |
+| **MinIO S3** | a1-s3-1.alem.ai (bucket: `salimakolbasenko`) |
+| **Milvus** | a1-milvus1.alem.ai:30130 (db: `kolbasenkosalima`) |
 | **GitLab** | https://a1-gitlab3.alem.ai/sakhmedi/shartai |
 
 **Langfuse setup (one-time):**
@@ -111,24 +120,20 @@ git push school main
 ```
 ┌─────────────┐     ┌──────────────┐     ┌──────────────┐
 │  Frontend   │────▶│   Backend    │────▶│  PostgreSQL  │
-│  (React/    │     │  (FastAPI)   │     │  (shart +    │
-│   nginx)    │     └──────┬───────┘     │    n8n)      │
-└─────────────┘            │             └──────────────┘
+│  (React/    │     │  (FastAPI)   │     └──────────────┘
+│   nginx)    │     └──────┬───────┘     ┌──────────────┐
+└─────────────┘            │────────────▶│    Redis     │
+                           │             └──────────────┘
                            │
-              ┌────────────┼─────────────┐
-              │            │             │
-    ┌─────────▼──┐  ┌──────▼──────┐  ┌──▼───────────┐
-    │   MinIO    │  │   RAGFlow   │  │    Milvus    │
-    │  (S3 docs) │  │  (RAG API)  │  │  (vectors)   │
-    └────────────┘  └─────────────┘  └──────────────┘
-                           │
-              ┌────────────┼────────────┐
-              │            │            │
-    ┌─────────▼──┐  ┌──────────────────────────────────┐
-    │   Redis    │  │  External APIs                   │
-    │  (cache)   │  │  OCR / STT / Reranker / Embed    │
-    └────────────┘  │  Langfuse (https://a1-langfuse1) │
-                    └──────────────────────────────────┘
+              ┌────────────┼──────────────────────┐
+              │            │                      │
+    ┌─────────▼──┐  ┌──────▼──────┐    ┌──────────▼───┐
+    │  MinIO S3  │  │   Milvus    │    │  Alem.ai APIs│
+    │ (school,   │  │ (school,    │    │  LLM / Embed │
+    │  TLS)      │  │  pymilvus)  │    │  OCR / STT   │
+    └────────────┘  └─────────────┘    │  Reranker    │
+                                       │  Langfuse    │
+                                       └──────────────┘
 ```
 
 ---
@@ -155,7 +160,8 @@ shart/
 │   │   ├── chat.py             # RAG chat with Langfuse tracing + reranking
 │   │   └── speech.py           # POST /api/speech/transcribe
 │   └── services/
-│       ├── minio_client.py     # MinIO S3 wrapper
+│       ├── milvus_store.py     # pymilvus vector store (remote Milvus)
+│       ├── minio_client.py     # MinIO S3 wrapper (remote, TLS)
 │       ├── ragflow_client.py   # RAGFlow dataset + document API
 │       ├── ocr_client.py       # Image/scanned PDF → text
 │       ├── stt_client.py       # Audio → text (Kazakh STT)

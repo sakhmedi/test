@@ -28,3 +28,5 @@ Thumbs.db        # Windows
 # Docker volumes (локальные данные)
 postgres_data/
 minio_data/
+
+ARCHITECTURE.md 
