@@ -10,6 +10,19 @@ class RAGFlowClient:
         self._api_key = os.getenv("RAGFLOW_API_KEY", "")
         self._headers = {"Authorization": f"Bearer {self._api_key}"}
 
+    async def get_or_create_dataset(self, name: str) -> str:
+        async with httpx.AsyncClient(base_url=self._base_url, headers=self._headers, timeout=30) as client:
+            resp = await client.get("/api/v1/datasets", params={"name": name})
+            resp.raise_for_status()
+            datasets = resp.json().get("data", [])
+            for ds in datasets:
+                if ds.get("name") == name:
+                    return ds["id"]
+            # Not found — create
+            resp = await client.post("/api/v1/datasets", json={"name": name})
+            resp.raise_for_status()
+            return resp.json()["data"]["id"]
+
     async def create_dataset(self, name: str) -> str:
         """Create a new knowledge-base dataset. Returns the dataset id."""
         # FIXED: added timeout=30

@@ -14,6 +14,7 @@ from services.ocr_client import VisionClient
 from services.embedder_client import EmbedderClient
 from services.text_extractor import extract_pages, chunk_pages
 from services.milvus_store import MilvusStore
+from services.ragflow_client import RAGFlowClient
 
 logger = logging.getLogger(__name__)
 
@@ -157,6 +158,19 @@ async def upload_document(
     minio = MinIOClient()
     minio.upload_file(object_name, file_bytes, content_type)
 
+    # Upload to RAGFlow
+    ragflow_kb_id = None
+    ragflow_doc_id = None
+    try:
+        ragflow = RAGFlowClient()
+        ragflow_kb_id = await ragflow.get_or_create_dataset(f"company_{company_id}")
+        ragflow_doc_id = await ragflow.upload_document(ragflow_kb_id, original_filename, file_bytes)
+        await ragflow.start_parsing(ragflow_kb_id, ragflow_doc_id)
+    except Exception as exc:
+        logger.warning("RAGFlow upload failed, continuing without it: %s", exc)
+        ragflow_kb_id = None
+        ragflow_doc_id = None
+
     # Extract text, chunk, embed, and store in Milvus
     pages = extract_pages(original_filename, file_bytes)
     chunks = chunk_pages(pages)
@@ -168,8 +182,8 @@ async def upload_document(
         filename=original_filename,
         minio_key=object_name,
         status=doc_status,
-        ragflow_kb_id=None,
-        ragflow_doc_id=None,
+        ragflow_kb_id=ragflow_kb_id,
+        ragflow_doc_id=ragflow_doc_id,
     )
     db.add(doc)
     db.commit()

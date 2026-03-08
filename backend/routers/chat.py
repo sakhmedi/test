@@ -12,6 +12,7 @@ from models import ChatMessage, ChatSession, Document
 from services.embedder_client import EmbedderClient
 from services.milvus_store import MilvusStore
 from services.reranker_client import RerankerClient
+from services.ragflow_client import RAGFlowClient
 
 logger = logging.getLogger(__name__)
 
@@ -88,6 +89,31 @@ async def chat(
         chunks = store.search(company_id, query_vec, top_k=5, doc_ids=session_doc_ids)
     except Exception as exc:
         logger.warning("Milvus search failed: %s", exc)
+
+    # RAGFlow retrieval — merge results with Milvus chunks
+    try:
+        dataset_ids = [
+            row.ragflow_kb_id
+            for row in db.query(Document.ragflow_kb_id)
+                .filter(Document.company_id == company_id, Document.ragflow_kb_id != None)
+                .distinct().all()
+        ]
+        if dataset_ids:
+            ragflow = RAGFlowClient()
+            rf_chunks = await ragflow.query(dataset_ids, body.question, top_k=5)
+            normalized = [
+                {"text": c["content"], "filename": c.get("document_name", ""), "page": None}
+                for c in rf_chunks
+            ]
+            seen = {c.get("text", "") for c in chunks}
+            for c in normalized:
+                if c["text"] not in seen:
+                    chunks.append(c)
+                    seen.add(c["text"])
+            logger.info("RAGFlow contributed %d chunks", len(normalized))
+    except Exception as exc:
+        logger.warning("RAGFlow retrieval failed, using Milvus results only: %s", exc)
+
     if retrieval_span:
         try:
             retrieval_span.end(output={"chunk_count": len(chunks)})
